@@ -96,3 +96,10 @@ No API keys, paid requests, or test packages are needed:
 
 The second command also writes standard-library line-coverage reports under
 `output/coverage/`. Tests use synthetic evidence and injected fake services.
+
+## Quality reviewer
+
+The independent `war_reviewer.ReviewerAgent` compares a supplied artifact against its
+research context. It returns scored findings and a fingerprinted pass/revise result.
+See [the reviewer report](docs/REVIEWER_AGENT_REPORT.md). Standalone commands and
+director integration are added in the following component.

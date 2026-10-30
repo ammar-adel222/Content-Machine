@@ -20,6 +20,6 @@ if __name__ == "__main__":
     result = tracer.runfunc(run)
     coverage = tracer.results()
     coverage.counts = {key: count for key, count in coverage.counts.items()
-                       if any(Path(key[0]).is_relative_to(ROOT / package) for package in ("war_research", "war_writer"))}
+                       if any(Path(key[0]).is_relative_to(ROOT / package) for package in ("war_research", "war_writer", "war_reviewer"))}
     coverage.write_results(show_missing=True, summary=True, coverdir=str(ROOT / "output" / "coverage"))
     raise SystemExit(0 if result.wasSuccessful() else 1)

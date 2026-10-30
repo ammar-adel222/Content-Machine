@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "war-content-research"
-version = "0.2.0"
+version = "0.2.1"
 description = "Independent research and directed narration for war tactics videos"
 requires-python = ">=3.11"
 dependencies = ["pydantic>=2.8,<3"]
@@ -14,4 +14,4 @@ war-research = "war_research.__main__:main"
 war-write = "war_writer.__main__:main"
 
 [tool.setuptools.packages.find]
-include = ["war_research*", "war_writer*"]
+include = ["war_research*", "war_writer*", "war_reviewer*"]
