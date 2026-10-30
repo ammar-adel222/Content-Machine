@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "war-content-research"
+version = "0.1.0"
+description = "Independent, evidence-backed research for war tactics videos"
+requires-python = ">=3.11"
+dependencies = ["pydantic>=2.8,<3"]
+
+[project.scripts]
+war-research = "war_research.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["war_research*"]

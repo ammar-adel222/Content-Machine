@@ -1,0 +1,9 @@
+# Project working conventions
+
+- Keep implementation minimal, readable, and efficient. Add dependencies only when useful.
+- Keep research, writing, battle direction, and production independently runnable through saved contracts.
+- Unit-test every implemented behavior, including error paths; keep unit tests offline and independent of API keys.
+- Run the tests after changes. Live API checks are separate from unit tests and should use bounded budgets.
+- Never print, copy into reports, or commit API credentials. The existing external `.env` can be supplied at runtime.
+- After completing each component, create or update a Markdown report under `docs/` explaining its purpose,
+  architecture, inputs/outputs, usage, verification results, and limitations. Link it in the completion message.
