@@ -1,8 +1,10 @@
 import {cameraAt,unitState,clamp} from './motion.mjs';
 import {drawDesign as ink,palette as roles} from './symbols.mjs';
 import {placeLabel} from './labels.mjs';
+import {connectPlayback} from './playback.mjs';
+import {videoSize,filmOverlay,coverCamera} from './video.mjs';
 const {Application,Container,Graphics,Text}=globalThis.PIXI;
-const W=1080,H=1920,TOP=230,MAP_H=1330;
+const W=1080,H=1920;
 const sideColors=[0x477f92,0xb2634e,0x8b7eae,0x5b8866];
 const terrainColors={sea:0xa6c2c5,river:0x9ebec1,plain:0xe1dbbd,forest:0xa8b495,mountain:0xb6b29c,ridge:0xc6bd9f,marsh:0xb6c2a1,rocky_ground:0xc7c0a9};
 function label(text,x,y,size,color=roles.ink,width=900) {
@@ -21,10 +23,26 @@ async function start() {
   if(new URLSearchParams(location.search).has('export'))document.body.classList.add('export');
   const response=await fetch('scene.json');if(!response.ok)throw Error('Cannot load scene.json. Serve this bundle over HTTP.');
   const data=await response.json();
-  const app=new Application();await app.init({width:W,height:H,backgroundColor:0xeee6d1,antialias:true,autoStart:false,preserveDrawingBuffer:true,preference:'webgl'});
-  document.getElementById('screen').appendChild(app.canvas);
-  const bg=new Graphics().rect(0,0,W,H).fill(0xeee6d1);app.stage.addChild(bg);
-  const world=new Container(),clip=new Graphics().rect(40,TOP,W-80,MAP_H).fill(0xffffff);
+  const aspect=new URLSearchParams(location.search).get('aspect')||'portrait',size=videoSize(aspect);
+  document.documentElement.style.setProperty('--video-aspect',size.width/size.height);
+  document.documentElement.style.setProperty('--video-width',size.width+'px');
+  document.getElementById('format').value=aspect;
+  document.getElementById('format').onchange=event=>{const url=new URL(location.href);url.searchParams.set('aspect',event.target.value);location.href=url.href;};
+  const app=new Application();await app.init({...size,backgroundColor:0xeee6d1,antialias:true,autoStart:false,preserveDrawingBuffer:true,preference:'webgl'});
+  document.getElementById('screen').replaceChildren(app.canvas);
+  if(data.battlefield) {
+    document.querySelector('small').textContent='Tactical terrain study · measured heights · silent preview';
+    const {createBattlefield}=await import('./battlefield.mjs');
+    connectPlayback(data,app,await createBattlefield(data,app));return;
+  }
+  if(data.geography) {
+    document.querySelector('small').textContent='Geographic map · area callouts · silent preview';
+    const {createGeography}=await import('./geography.mjs');
+    connectPlayback(data,app,await createGeography(data,app));return;
+  }
+  const SW=size.width,SH=size.height;
+  const bg=new Graphics().rect(0,0,SW,SH).fill(0xded9bb);app.stage.addChild(bg);
+  const world=new Container(),clip=new Graphics().rect(0,0,SW,SH).fill(0xffffff);
   app.stage.addChild(world,clip);world.mask=clip;
   world.addChild(new Graphics().rect(0,0,W,H).fill(0xded9bb));
   // Sparse contour grid gives distance cues without claiming real survey contours.
@@ -67,26 +85,13 @@ async function start() {
       holder.addChild(halo,body);world.addChild(holder);units.push({force,i,count,holder,halo});
     }
   }
-  // Headline and caption stay in screen space while the map camera moves.
-  app.stage.addChild(label('CONTENT MACHINE  /  WAR TACTICS',60,55,21,0x78816e));
-  const title=label(data.topic,60,102,50,roles.ink,950);if(title.height>106)title.style.fontSize=38;app.stage.addChild(title);
-  app.stage.addChild(new Graphics().moveTo(60,211).lineTo(1020,211).stroke({color:0x9a9f85,width:2}));
-  const sceneLabel=label('',70,TOP+35,25,roles.ink,900);app.stage.addChild(sceneLabel);
   const leaders=new Graphics();app.stage.addChild(leaders);
   for(const item of terrainLabels)app.stage.addChild(item.text);
-  app.stage.addChild(new Graphics().rect(40,TOP+MAP_H+15,W-80,H-TOP-MAP_H-65).fill(0xeee6d1));
-  const caption=label('',70,TOP+MAP_H+50,35,roles.ink,940);app.stage.addChild(caption);
-  let legendX=70;
-  sides.forEach((side,i)=>{app.stage.addChild(new Graphics().circle(legendX+7,H-70,7).fill(sideColors[i%sideColors.length]));
-    const legend=label(side,legendX+25,H-84,21,0x647363,250);app.stage.addChild(legend);legendX+=legend.width+65;});
-  const progress=new Graphics();app.stage.addChild(progress);
-  let time=0,playing=false,last=performance.now();
-  const seek=document.getElementById('seek');seek.max=data.duration;
+  const hud=filmOverlay(data,app,'Schematic geography · symbolic force groups',sides.join(' / '));
   function renderAt(seconds) {
-    time=clamp(seconds,0,data.duration);
-    const camera=cameraAt(data.scenes,time),scale=Math.min((W-80)/W,MAP_H/H)/camera.width;
-    world.scale.set(scale);world.position.set(W/2-camera.x*W*scale,TOP+MAP_H/2-camera.y*H*scale);
-    // Camera remains 9:16; viewport is cropped by the caption/header safe area.
+    const time=clamp(seconds,0,data.duration);
+    const camera=cameraAt(data.scenes,time),framing=coverCamera({x:(camera.x-camera.width/2)*W,y:(camera.y-camera.width/2)*H,width:camera.width*W,height:camera.width*H},SW,SH,{x:camera.x*W,y:camera.y*H});
+    const scale=framing.scale;world.scale.set(scale);world.position.set(framing.x,framing.y);
     const occupied=[];
     for(const unit of units) {
       const state=unitState(unit.force,actions,time,unit.i,unit.count);
@@ -99,22 +104,15 @@ async function start() {
     leaders.clear();let visibleLabels=0;
     for(const item of terrainLabels) {
       const anchor={x:world.x+item.point.x*W*scale,y:world.y+item.point.y*H*scale};
-      const inView=anchor.x>=40 && anchor.x<=W-40 && anchor.y>=TOP+90 && anchor.y<=TOP+MAP_H-20;
-      const box=inView && visibleLabels<3 ? placeLabel(anchor,item.text.width,item.text.height,occupied,{x:60,y:TOP+95,width:W-120,height:MAP_H-115}):null;
+      const inView=anchor.x>=28 && anchor.x<=SW-28 && anchor.y>=130 && anchor.y<=SH-240;
+      const box=inView && visibleLabels<3 ? placeLabel(anchor,item.text.width,item.text.height,occupied,{x:28,y:130,width:SW-56,height:SH-370}):null;
       item.text.visible=Boolean(box);
       if(box){item.text.position.set(box.x,box.y);occupied.push(box);visibleLabels++;
         leaders.moveTo(anchor.x,anchor.y).lineTo(box.x+box.width/2,box.y+box.height/2).stroke({color:0x667767,width:1,alpha:.5});}
     }
-    const active=data.captions.find(c=>time>=c.start && time<c.end);
-    caption.text=active?.text??'';caption.style.fontSize=caption.text.length>220?29:35;
-    sceneLabel.text=camera.scene.labels.join('  ·  ');
-    progress.clear().rect(40,H-25,(W-80)*time/data.duration,4).fill(0xa67f43);
-    app.renderer.render(app.stage);seek.value=time;
-    document.getElementById('time').textContent=`${Math.floor(time/60)}:${String(Math.floor(time%60)).padStart(2,'0')}`;
+    hud.update(time,camera.scene.labels.join(' · '));
+    app.renderer.render(app.stage);
   }
-  seek.addEventListener('input',()=>{playing=false;document.getElementById('play').textContent='Play';renderAt(Number(seek.value));});
-  document.getElementById('play').onclick=()=>{if(time>=data.duration)time=0;playing=!playing;document.getElementById('play').textContent=playing?'Pause':'Play';};
-  function tick(now){if(playing){renderAt(time+(now-last)/1000);if(time>=data.duration){playing=false;document.getElementById('play').textContent='Play';}}last=now;requestAnimationFrame(tick);}
-  globalThis.contentEngine={renderAt,data,app};renderAt(0);globalThis.contentReady=true;requestAnimationFrame(tick);
+  connectPlayback(data,app,renderAt);
 }
-start().catch(error=>{document.getElementById('error').textContent=error.message;globalThis.contentError=error.message;});
+start().catch(error=>{document.getElementById('error').textContent=error.message;document.getElementById('screen').textContent='Preview unavailable';globalThis.contentError=error.message;});

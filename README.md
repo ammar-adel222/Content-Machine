@@ -109,11 +109,20 @@ matching research/script versions.
 
 ## Create visuals and play the map
 
+**To view an existing map, double-click `preview.cmd` in the project root**, or run
+`python -m war_content.play`. It opens the latest ready generated map automatically;
+keep its console open while viewing. Do not open `war_content/web/index.html` directly:
+that is the player template and has no generated scene attached.
+
 The content engine defaults to **Qwen 3.8 27B through Groq** for unit/terrain design
 and image review. It reuses reviewed assets, creates missing vector designs, renders
 them for visual inspection, and compiles a local PixiJS playback bundle.
 Read the [engine report](docs/CONTENT_ENGINE_REPORT.md) and
 [model comparison](docs/VISUAL_MODEL_BENCHMARK.md), including GPT-OSS results.
+
+Maps fill the video canvas. Use the **9:16 / 16:9** preview selector to compare portrait
+and landscape. Captions/labels overlay the map; large title/footer bands are removed.
+See [the full-frame composition report](docs/FULL_FRAME_VIDEO_REPORT.md).
 
 ```powershell
 pnpm --dir renderer install --frozen-lockfile
@@ -121,21 +130,52 @@ node renderer/node_modules/playwright/cli.js install chromium
 
 & $researchPython -m war_content 'output/research/RUN/dossier.json' 'output/writing/VERSION/script.json' 'output/directing/PLAN/storyboard.json' --env-file 'E:\AI matirial\content machine\war-tactics-agent\.env'
 
-& $researchPython -m http.server 8000 --bind 127.0.0.1 --directory output/content/THE-BUILD
-# Open http://127.0.0.1:8000/ in your browser.
+& $researchPython -m war_content.play
+# Or select a particular ready build:
+& $researchPython -m war_content.play output/content/THE-BUILD
 
 # In another terminal; requires FFmpeg on PATH.
 node renderer/export.mjs output/content/THE-BUILD preview.mp4 6 15
 ```
 
-Custom units and terrain use validated geometry, not generated executable code. New
-geographic outlines come from the director; current layouts remain schematic. Playback
+Custom units and terrain use validated geometry, not generated executable code.
+Original director layouts are schematic; the geographic stage below adds real outlines and relief. Playback
 and exports are silent until TTS/composition is connected. Models/quotas can leave a
 build `needs_revision`; those bundles contain a report and no playable scene.
 
 Visual overrides: `CONTENT_MODEL`, `CONTENT_REVIEW_MODEL`, `--provider`, `--model`,
 `--review-provider`, `--review-model`. Research/writing retain their separate Gemini
 defaults. Full cached builds with a saved manifest need no API calls.
+
+## Build a geographic map
+
+The [geography stage](docs/GEOGRAPHY_ENGINE_REPORT.md) adds real coastlines and
+elevation-derived relief. The Falklands example includes East/West Falkland and a
+closer Stanley terrain view. Its schematic terrain and unlocated fleet route are
+omitted rather than reused as geographic facts.
+
+```powershell
+python -m pip install -e ".[geography]"
+& $researchPython -m war_content.geography output/content/ORIGINAL-READY-BUILD
+& $researchPython -m war_content.play
+```
+
+For another region, supply `--geojson region.geojson --bbox WEST SOUTH EAST NORTH`.
+Modern basemaps do not establish historical roads or unit deployments. Sources,
+dataset hashes and limitations are saved with each geographic build.
+
+## Battlefield terrain
+
+War overviews and battle terrain use separate renderers. The Austerlitz battlefield
+study shows a tilted elevation mesh, contours, the Goldbach stream and village markers.
+It is a terrain preview, not a reconstructed battle replay. See the
+[battlefield report](docs/BATTLEFIELD_TERRAIN_REPORT.md) for sources and limits.
+
+```powershell
+& $researchPython -m war_content.battlefield
+& $researchPython -m war_content.play --mode battlefield
+& $researchPython -m war_content.play --mode campaign
+```
 
 ## Tests
 

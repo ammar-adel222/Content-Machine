@@ -4,10 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "war-content-research"
-version = "0.4.0"
+version = "0.5.0"
 description = "Independent research and directed narration for war tactics videos"
 requires-python = ">=3.11"
 dependencies = ["pydantic>=2.8,<3"]
+
+[project.optional-dependencies]
+geography = ["Pillow>=10,<13"]
 
 [project.scripts]
 war-research = "war_research.__main__:main"
@@ -15,9 +18,10 @@ war-write = "war_writer.__main__:main"
 war-direct = "war_director.__main__:main"
 war-review = "war_reviewer.__main__:main"
 war-content = "war_content.__main__:main"
+war-preview = "war_content.play:main"
 
 [tool.setuptools.packages.find]
 include = ["war_research*", "war_writer*", "war_director*", "war_reviewer*", "war_content*"]
 
 [tool.setuptools.package-data]
-war_content = ["web/*.html", "web/*.mjs"]
+war_content = ["web/*.html", "web/*.mjs", "web/*.js"]

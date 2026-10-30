@@ -46,7 +46,7 @@ def save(build, plan, script, root, *, audio=None, pixi=None):
                    "timeline":plan.timeline,"bindings":bindings,
                    "assets":{k:v.design.model_dump() for k,v in build.assets.items()}}
         (directory/"scene.json").write_text(json.dumps(payload,ensure_ascii=False,indent=2),encoding="utf-8")
-        for name in ("index.html","player.mjs","motion.mjs","symbols.mjs","labels.mjs"):
+        for name in ("index.html","boot.js","player.mjs","motion.mjs","symbols.mjs","labels.mjs","geography.mjs","playback.mjs","battlefield.mjs","video.mjs"):
             shutil.copyfile(WEB/name,directory/name)
         shutil.copyfile(pixi,directory/"pixi.min.js")
         lines += ["", "Serve this directory over HTTP and open index.html. Use the timeline slider to inspect any frame."]

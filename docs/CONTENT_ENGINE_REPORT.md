@@ -1,5 +1,9 @@
 # Content engine — build report
 
+> Update: the later [geography stage](GEOGRAPHY_ENGINE_REPORT.md) adds real coastlines
+> and elevation-derived relief. The original schematic build and its initial limits
+> are documented below for context.
+
 ## Purpose and current model choices
 
 `war_content` turns a ready director storyboard into a playable PixiJS map. It can

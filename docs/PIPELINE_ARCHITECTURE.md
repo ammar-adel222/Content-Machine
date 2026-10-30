@@ -37,3 +37,14 @@ and writing, and Qwen 3.8 27B through Groq for visuals. Visual appearance is ind
 of geographic placement and movement rules. A missing asset is generated as bounded
 vector data, rendered, reviewed and cached; it cannot alter the researched event plan.
 See [the content engine report](CONTENT_ENGINE_REPORT.md).
+
+The [geography stage](GEOGRAPHY_ENGINE_REPORT.md) now compiles source GeoJSON and
+elevation tiles into coastlines and relief, independently of LLM asset design.
+The geographic renderer bypasses unlocated schematic terrain/routes; historical
+place callouts carry source references. The Falklands example and custom-region
+inputs work now. Automatic topic-to-GIS selection remains an upstream integration task.
+
+Battlefield views have a separate tilted-heightfield renderer and an Austerlitz
+[terrain study](BATTLEFIELD_TERRAIN_REPORT.md). Campaign maps retain their overview
+layout. The study is explicitly non-publishable; historically located formations,
+crossings and movement corridors still require a checked spatial director plan.

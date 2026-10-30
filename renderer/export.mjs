@@ -5,10 +5,11 @@ import {createReadStream} from 'node:fs';
 import {mkdir,stat} from 'node:fs/promises';
 import {resolve,extname,sep} from 'node:path';
 import {spawn} from 'node:child_process';
-const [bundle,output='preview.mp4',durationArg,fpsArg='30']=process.argv.slice(2);
-if(!bundle)throw Error('Usage: node renderer/export.mjs BUNDLE OUTPUT.mp4|png [SECONDS] [FPS]');
+const [bundle,output='preview.mp4',durationArg,fpsArg='30',aspect='portrait']=process.argv.slice(2);
+if(!bundle)throw Error('Usage: node renderer/export.mjs BUNDLE OUTPUT.mp4|png [SECONDS] [FPS] [portrait|landscape]');
 const root=resolve(bundle),target=resolve(output),fps=Number(fpsArg);
 if(!Number.isInteger(fps)||fps<1||fps>60)throw Error('FPS must be 1–60.');
+if(!['portrait','landscape'].includes(aspect))throw Error('Format must be portrait or landscape.');
 await mkdir(resolve(target,'..'),{recursive:true});
 const server=createServer(async(req,res)=>{
   try {
@@ -16,7 +17,7 @@ const server=createServer(async(req,res)=>{
     if(!path.startsWith(root+sep) && path!==root){res.writeHead(403).end();return;}
     const file=path===root?resolve(root,'index.html'):path;
     if(!(await stat(file)).isFile()){res.writeHead(404).end();return;}
-    res.setHeader('Content-Type',({'.html':'text/html','.mjs':'text/javascript','.js':'text/javascript','.json':'application/json'})[extname(file)]??'application/octet-stream');
+    res.setHeader('Content-Type',({'.html':'text/html','.mjs':'text/javascript','.js':'text/javascript','.json':'application/json','.png':'image/png'})[extname(file)]??'application/octet-stream');
     createReadStream(file).pipe(res);
   }catch{res.writeHead(404).end();}
 });
@@ -24,8 +25,8 @@ await new Promise(r=>server.listen(0,'127.0.0.1',r));
 let browser,encoder;
 try {
   browser=await chromium.launch({headless:true,args:['--enable-webgl','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
-  const page=await browser.newPage({viewport:{width:1080,height:1920},deviceScaleFactor:1});
-  await page.goto(`http://127.0.0.1:${server.address().port}/index.html?export`);
+  const page=await browser.newPage({viewport:aspect==='landscape'?{width:1920,height:1080}:{width:1080,height:1920},deviceScaleFactor:1});
+  await page.goto(`http://127.0.0.1:${server.address().port}/index.html?export&aspect=${aspect}`);
   await page.waitForFunction(()=>globalThis.contentReady||globalThis.contentError,{},{timeout:60000});
   const error=await page.evaluate(()=>globalThis.contentError);if(error)throw Error(error);
   const total=await page.evaluate(()=>contentEngine.data.duration);

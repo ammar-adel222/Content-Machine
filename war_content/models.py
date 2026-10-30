@@ -99,6 +99,7 @@ class Build(Model):
     topic: str
     plan_sha256: str
     script_sha256: str
+    geography_sha256: str | None = None
     status: Literal["ready", "needs_revision"]
     manifest: Manifest
     assets: dict[str, Asset]
