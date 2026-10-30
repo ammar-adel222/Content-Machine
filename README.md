@@ -9,6 +9,8 @@ See [the research agent build report](docs/RESEARCH_AGENT_REPORT.md) for the des
 contracts, tests, limitations, and live verification results.
 Also see [the writer build report](docs/WRITING_AGENT_REPORT.md) and
 [the model comparison](docs/MODEL_COMPARISON.md).
+The [director](docs/DIRECTOR_AGENT_REPORT.md) and [reviewer](docs/REVIEWER_AGENT_REPORT.md)
+are now independently runnable. [LangGraph is the planned coordinator](docs/PIPELINE_ARCHITECTURE.md).
 
 ## Requirements
 
@@ -85,6 +87,23 @@ Writer exits: **0** ready, **2** needs revision, **1** input/provider failure.
 
 The research CLI also accepts `--provider openrouter`. Its default remains Gemini.
 
+## Direct and review the battlefield plan
+
+```powershell
+& $researchPython -m war_director 'output/research/THE-RUN/dossier.json' 'output/writing/THE-VERSION/script.json' --env-file 'E:\AI matirial\content machine\war-tactics-agent\.env'
+
+& $researchPython -m war_reviewer 'output/research/THE-RUN/dossier.json' 'output/writing/THE-VERSION/script.json' --env-file 'E:\AI matirial\content machine\war-tactics-agent\.env'
+```
+
+The director produces `storyboard.json`, `storyboard.md`, `render_plan.json` and a quality
+review when available. A targeted `--previous PLAN --scene s3 --notes '...'` edit preserves
+the world and other scenes, but rechecks downstream continuity. `--retime --previous PLAN
+--audio-timing FILE` recompiles timing without model calls. Reviewers can also inspect a
+storyboard using `--plan PLAN`.
+
+These are plan artifacts, not rendered videos. Default model remains Gemini Flash-Lite.
+Other providers are not being compared. Inputs must use matching research/script versions.
+
 ## Tests
 
 No API keys, paid requests, or test packages are needed:
@@ -96,10 +115,3 @@ No API keys, paid requests, or test packages are needed:
 
 The second command also writes standard-library line-coverage reports under
 `output/coverage/`. Tests use synthetic evidence and injected fake services.
-
-## Quality reviewer
-
-The independent `war_reviewer.ReviewerAgent` compares a supplied artifact against its
-research context. It returns scored findings and a fingerprinted pass/revise result.
-See [the reviewer report](docs/REVIEWER_AGENT_REPORT.md). Standalone commands and
-director integration are added in the following component.
