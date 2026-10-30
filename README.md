@@ -1,11 +1,14 @@
 # War Content Machine — edition two
 
-An independent research agent for ancient and modern wars and battles. It discovers
-or accepts a topic, retrieves evidence, and saves versioned JSON/Markdown dossiers.
-Default video target: **105 seconds** (normally 90–120, allowed 60–150).
+The independent research agent discovers or accepts a war/battle, retrieves evidence,
+and saves structured research. The writing agent turns a ready dossier into narration,
+performance directions, and a TTS handoff. Default video target: **105 seconds**
+(90–120 seconds normally, 60–150 seconds allowed).
 
-See [the research agent build report](docs/RESEARCH_AGENT_REPORT.md) for architecture,
-inputs/outputs, tests, live checks, and limitations.
+See [the research agent build report](docs/RESEARCH_AGENT_REPORT.md) for the design,
+contracts, tests, limitations, and live verification results.
+Also see [the writer build report](docs/WRITING_AGENT_REPORT.md) and
+[the model comparison](docs/MODEL_COMPARISON.md).
 
 ## Requirements
 
@@ -60,6 +63,27 @@ Each run gets a new folder. Discovery produces `discovery.json`; completed resea
 produces `dossier.json` and `report.md`. An incomplete report is still saved and
 explicitly lists evidence gaps. Exit codes: **0** ready/discovery saved, **2** incomplete,
 **1** configuration/provider/research failure.
+
+## Write or revise a script
+
+The writer defaults to Gemini's free API using `gemini-3.5-flash-lite` and the existing
+`GEMINI_API_KEY`. Configure the text model with `GEMINI_MODEL` or `--model`. OpenRouter
+and Groq remain optional adapters for later comparisons; their use is explicit via
+`--provider`. OpenRouter requests are capped at zero-priced routes. No Tavily key is
+needed to write from saved research.
+
+```powershell
+& $researchPython -m war_writer 'output/research/THE-RUN/dossier.json' --env-file 'E:\AI matirial\content machine\war-tactics-agent\.env'
+
+& $researchPython -m war_writer 'output/research/THE-RUN/dossier.json' --previous 'output/writing/THE-VERSION/script.json' --scene s2 --notes 'Calmer delivery, with a pause before the reversal.' --env-file 'E:\AI matirial\content machine\war-tactics-agent\.env'
+```
+
+Substitute real saved paths. Each version contains `script.json`, `script.md` and
+`tts_plan.json`. A targeted edit preserves other scenes and global metadata. Actual
+speech generation is a future component; pause timings are targets, not measured audio.
+Writer exits: **0** ready, **2** needs revision, **1** input/provider failure.
+
+The research CLI also accepts `--provider openrouter`. Its default remains Gemini.
 
 ## Tests
 

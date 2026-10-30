@@ -20,6 +20,17 @@ class ProviderError(RuntimeError):
     pass
 
 
+def gemini_schema(value):
+    """Use a simple native grammar; retain full constraints in the prompt and locally."""
+    if isinstance(value, dict):
+        constraints = {"pattern", "minLength", "maxLength", "minItems", "maxItems",
+                       "minimum", "maximum", "default", "title"}
+        return {key: ({name: gemini_schema(schema) for name, schema in item.items()}
+                      if key in ("properties", "$defs") else gemini_schema(item))
+                for key, item in value.items() if key not in constraints}
+    if isinstance(value, list):
+        return [gemini_schema(item) for item in value]
+    return value
 
 
 def load_env(path: Path) -> None:
@@ -103,9 +114,9 @@ class Web:
 class LanguageModel:
     def __init__(self, providers: list[tuple[str, str, str]], transport: Callable = request_json):
         """Each entry is (provider, model, key); list order is explicit fallback order."""
-        if not providers or any(not key or provider not in ("gemini", "groq")
+        if not providers or any(not key or provider not in ("gemini", "groq", "openrouter")
                                 for provider, _, key in providers):
-            raise ValueError("Configure at least one Gemini or Groq model and API key.")
+            raise ValueError("Configure a Gemini, Groq, or OpenRouter model and API key.")
         self.providers, self.transport = providers, transport
         self.used: list[str] = []
 
@@ -128,20 +139,39 @@ class LanguageModel:
                         {"systemInstruction": {"parts": [{"text": system}]},
                          "contents": [{"role": "user", "parts": [{"text": prompt}]}],
                          "generationConfig": {"responseMimeType": "application/json",
-                                              "responseJsonSchema": output_schema, "temperature": 0.2}},
+                                              "responseJsonSchema": gemini_schema(output_schema), "temperature": 0.2}},
                         {"x-goog-api-key": key})
                     content = "".join(part.get("text", "") for part in
                                       result["candidates"][0]["content"]["parts"] if not part.get("thought"))
                 else:
-                    result = self.transport("https://api.groq.com/openai/v1/chat/completions",
-                        {"model": model, "messages": [{"role": "system", "content": system},
-                                                       {"role": "user", "content": prompt}],
-                         "response_format": {"type": "json_object"}, "max_completion_tokens": 4096,
-                         "temperature": 0.2},
-                        {"Authorization": f"Bearer {key}"})
+                    payload = {"model": model, "messages": [{"role": "system", "content": system},
+                                                              {"role": "user", "content": prompt}],
+                               "temperature": 0.2}
+                    if provider == "groq":
+                        payload.update(response_format={"type": "json_object"}, max_completion_tokens=4096)
+                        result = self.transport("https://api.groq.com/openai/v1/chat/completions", payload,
+                                                {"Authorization": f"Bearer {key}"})
+                    else:
+                        # Free models vary in JSON-mode support. Enforce the schema locally.
+                        # Zero-price routing keeps this project's free-API experiments free.
+                        reasoning = {"max_tokens": 1024, "exclude": True} if "nemotron-3-ultra" in model else {"exclude": True}
+                        if model in ("nvidia/nemotron-3.5-super-vl:free", "openrouter/free"):
+                            if model != "openrouter/free":
+                                reasoning = {"enabled": False, "exclude": True}
+                            payload["response_format"] = {"type": "json_schema", "json_schema": {
+                                "name": schema.__name__, "strict": True, "schema": output_schema}}
+                        payload.update(max_tokens=7000, reasoning=reasoning,
+                                       provider={"max_price": {"prompt": 0, "completion": 0}})
+                        result = self.transport("https://openrouter.ai/api/v1/chat/completions", payload,
+                                                {"Authorization": f"Bearer {key}"}, timeout=180)
+                    if isinstance(result.get("error"), dict):
+                        raise ProviderError(f"Provider API error {result['error'].get('code', 'unknown')}.")
                     content = result["choices"][0]["message"]["content"]
+                    finish_reason = result["choices"][0].get("finish_reason")
+                    if isinstance(content, str) and content.strip().startswith("```"):
+                        content = re.sub(r"^```(?:json)?\s*|\s*```$", "", content.strip())
                 parsed = schema.model_validate_json(content)
-                self.used.append(f"{provider}:{model}")
+                self.used.append(f"{provider}:{result.get('model') or model}")
                 return parsed
             except ProviderError as error:
                 failures.append(f"{provider}: {error}")

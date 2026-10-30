@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch
 from urllib.error import HTTPError, URLError
 
 from war_research.models import Selection
-from war_research.providers import LanguageModel, ProviderError, Web, load_env, request_json
+from war_research.providers import LanguageModel, ProviderError, Web, gemini_schema, load_env, request_json
 from .helpers import candidate
 
 
@@ -133,19 +133,63 @@ class LanguageModelTests(unittest.TestCase):
         self.assertNotIn("secret", url)
         self.assertEqual(headers["x-goog-api-key"], "secret")
         self.assertIn("untrusted", payload["systemInstruction"]["parts"][0]["text"])
-        self.assertEqual(payload["generationConfig"]["responseJsonSchema"], Selection.model_json_schema())
+        self.assertEqual(payload["generationConfig"]["responseJsonSchema"], gemini_schema(Selection.model_json_schema()))
         self.consume.assert_called_once()
 
+    def test_gemini_schema_keeps_title_field_and_local_constraints(self):
+        from war_writer.models import Draft
+        original = Draft.model_json_schema()
+        simplified = gemini_schema(original)
+        self.assertIn("title", simplified["properties"])
+        self.assertNotIn("maxLength", simplified["properties"]["title"])
+        self.assertIn("maxLength", original["properties"]["title"])
+        self.assertNotIn("pattern", simplified["$defs"]["Scene"]["properties"]["id"])
     def test_groq_json_mode(self):
         transport = Mock(return_value={"choices": [{"message": {"content": self.content}}]})
         model = LanguageModel([("groq", "test-model", "secret")], transport)
         model.generate("Evidence", Selection, self.consume)
         self.assertEqual(transport.call_args.args[1]["response_format"], {"type": "json_object"})
 
+    def test_openrouter_fenced_json_and_free_routing(self):
+        transport = Mock(return_value={"choices": [{"message": {"content": "```json\n" + self.content + "\n```"}}]})
+        model = LanguageModel([("openrouter", "model:free", "secret")], transport)
+        result = model.generate("Evidence", Selection, self.consume)
+        self.assertEqual(result.candidates[0].topic, "Example Battle")
+        url, payload, headers = transport.call_args.args
+        self.assertEqual(url, "https://openrouter.ai/api/v1/chat/completions")
+        self.assertEqual(payload["provider"]["max_price"], {"prompt": 0, "completion": 0})
+        self.assertNotIn("response_format", payload)
+        self.assertEqual(transport.call_args.kwargs["timeout"], 180)
+        self.assertEqual(headers["Authorization"], "Bearer secret")
 
+    def test_openrouter_invalid_response_is_rejected(self):
+        model = LanguageModel([("openrouter", "model:free", "key")], Mock(return_value={"error": {"message": "private"}}))
+        with self.assertRaises(ProviderError) as caught:
+            model.generate("Evidence", Selection, self.consume)
+        self.assertNotIn("private", str(caught.exception))
 
+    def test_openrouter_super_vl_uses_native_schema(self):
+        transport = Mock(return_value={"choices": [{"message": {"content": self.content}, "finish_reason": "stop"}]})
+        model = LanguageModel([("openrouter", "nvidia/nemotron-3.5-super-vl:free", "key")], transport)
+        model.generate("Evidence", Selection, self.consume)
+        payload = transport.call_args.args[1]
+        self.assertEqual(payload["response_format"]["type"], "json_schema")
+        self.assertEqual(payload["response_format"]["json_schema"]["schema"], Selection.model_json_schema())
+        self.assertFalse(payload["reasoning"]["enabled"])
 
+    def test_openrouter_ultra_has_explicit_reasoning_budget(self):
+        transport = Mock(return_value={"choices": [{"message": {"content": self.content}}]})
+        model = LanguageModel([("openrouter", "nvidia/nemotron-3-ultra-550b-a55b:free", "key")], transport)
+        model.generate("Evidence", Selection, self.consume)
+        self.assertEqual(transport.call_args.args[1]["reasoning"]["max_tokens"], 1024)
 
+    def test_free_router_records_actual_selected_model(self):
+        transport = Mock(return_value={"model": "selected/model:free",
+            "choices": [{"message": {"content": self.content}}]})
+        model = LanguageModel([("openrouter", "openrouter/free", "key")], transport)
+        model.generate("Evidence", Selection, self.consume)
+        self.assertEqual(model.used, ["openrouter:selected/model:free"])
+        self.assertEqual(transport.call_args.args[1]["response_format"]["type"], "json_schema")
 
     def test_native_schema_constrains_available_passages(self):
         from war_research.models import Findings
