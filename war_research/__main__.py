@@ -10,7 +10,7 @@ from pydantic import ValidationError
 
 from .agent import ResearchAgent, ResearchError
 from .models import Discovery, ResearchRequest
-from .providers import LanguageModel, ProviderError, Web, load_env
+from .providers import LanguageModel, ProviderError, Web, load_env, model_routes
 from .storage import Cache, past_topics, save
 
 
@@ -42,14 +42,7 @@ def main(argv=None) -> int:
     try:
         if args.env_file.exists():
             load_env(args.env_file)
-        providers = []
-        for index, provider in enumerate(dict.fromkeys([args.provider, args.fallback])):
-            if provider is None:
-                continue
-            model = (args.model if index == 0 else None) or os.environ.get(
-                f"{provider.upper()}_MODEL", {"gemini": "gemini-3.5-flash-lite", "groq": "qwen/qwen3.8-27b",
-                    "openrouter": "nvidia/nemotron-3-ultra-550b-a55b:free"}[provider])
-            providers.append((provider, model, os.environ.get(f"{provider.upper()}_API_KEY", "")))
+        providers = model_routes(args.provider,args.model,args.fallback)
         agent = ResearchAgent(Web(os.environ.get("TAVILY_API_KEY", "")), LanguageModel(providers),
                               None if args.no_cache else Cache(args.output / ".cache"))
         budgets = {name: getattr(args, name) for name in ("max_searches", "max_extract_urls", "max_model_calls")

@@ -1,5 +1,7 @@
 # Writing agent — implementation report
 
+> Current model policy: writing now defaults to Gemini 3.8 Flash with automatic Gemini 3.5 Flash-Lite fallback. Explicit model/environment overrides remain supported. Original build verification below describes the initial implementation.
+
 ## Purpose
 
 The writer turns an existing ready research dossier into an English short-form war or

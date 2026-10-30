@@ -161,6 +161,7 @@ class CliTests(unittest.TestCase):
                                    "--model", "override", "--discover-only", "--output", tmp]), 0)
             web.assert_called_once_with("search-secret")
             self.assertEqual(model.call_args.args[0], [("groq", "override", "groq-secret"),
+                                                       ("gemini", "gemini-3.8-flash", "gemini-secret"),
                                                        ("gemini", "gemini-3.5-flash-lite", "gemini-secret")])
             self.assertNotIn("secret", next(Path(tmp).glob("*/discovery.json")).read_text())
 

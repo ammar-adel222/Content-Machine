@@ -40,6 +40,18 @@ class HttpTests(unittest.TestCase):
             request_json("https://example.org", opener=opener, sleep=sleep)
         sleep.assert_not_called()
 
+    def test_content_waits_for_bounded_decimal_token_reset(self):
+        opener=Mock(side_effect=[HTTPError('https://example.org',429,'secret',{'Retry-After':'12.5'},None),io.BytesIO(b'{}')])
+        sleep=Mock()
+        request_json('https://example.org',opener=opener,sleep=sleep,max_retry_wait=60)
+        sleep.assert_called_once_with(12.5)
+        for delay in ('-2','invalid'):
+            opener=Mock(side_effect=[HTTPError('https://example.org',429,'secret',{'Retry-After':delay},None),io.BytesIO(b'{}')])
+            sleep=Mock();request_json('https://example.org',opener=opener,sleep=sleep)
+            sleep.assert_called_once_with(1)
+        opener=Mock(side_effect=HTTPError('https://example.org',429,'secret',{'Retry-After':'100'},None))
+        with self.assertRaises(ProviderError):request_json('https://example.org',opener=opener,sleep=Mock(),max_retry_wait=999)
+
     def test_auth_failure_not_retried_or_leaked(self):
         opener = Mock(side_effect=HTTPError("https://example.org?key=secret", 401, "SECRET BODY", {}, None))
         with self.assertRaises(ProviderError) as caught:

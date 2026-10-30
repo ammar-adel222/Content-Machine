@@ -72,7 +72,7 @@ def barrier_for(force, terrain):
     if force.kind == "air":
         return False
     if force.kind == "fleet":
-        return terrain.kind in ("plain", "rocky_ground", "marsh", "mountain", "forest", "ridge", "settlement", "wall") and terrain.shape == "polygon"
+        return terrain.kind not in ("sea", "river") and terrain.shape == "polygon"
     return terrain.passability == "blocked"
 
 
@@ -280,7 +280,10 @@ class DirectorAgent:
             "Use ONLY supplied historical facts. Distinguish schematic placement from historical evidence: "
             "layout_kind=schematic and explain limits in layout_note. World x/y are normalized 0..1; "
             "both axes represent the full 9:16 world, not real geographic units. Terrain is locked for "
-            "the whole video. Depict narrated terrain: rocky ground as rocky_ground, roads as road lines, "
+            "the whole video. Terrain kind accepts new lowercase identifiers such as desert or cliff; "
+            "water still uses sea/river, with a specific label and visual motif later. "
+            "New land kinds keep explicit passability; no decorative invented geography. "
+            "Depict narrated terrain: rocky ground as rocky_ground, roads as road lines, "
             "not just a generic island rectangle. No decorative forests or mountains without sources. "
             "Use plain for island landmass, not settlement for a whole island group. "
             "Cite actual claim IDs on terrain, forces and actions. Never invent hidden "

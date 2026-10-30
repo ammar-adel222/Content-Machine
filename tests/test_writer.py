@@ -360,6 +360,7 @@ class WriterCliTests(unittest.TestCase):
                 self.assertEqual(main([str(path), "--env-file", str(env), "--provider", "openrouter", "--model", "chosen:free",
                                        "--fallback", "gemini", "--output", str(root / "out")]), 0)
                 self.assertEqual(factory.call_args.args[0], [("openrouter", "chosen:free", "secret"),
+                                                             ("gemini", "gemini-3.8-flash", "other"),
                                                              ("gemini", "gemini-3.5-flash-lite", "other")])
 
 

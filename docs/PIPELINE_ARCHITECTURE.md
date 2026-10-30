@@ -6,7 +6,9 @@ The agreed architecture keeps each component runnable through saved, versioned a
 flowchart LR
     R[Research dossier] --> W[Writer: narration and delivery]
     W --> D[Director: battlefield storyboard]
-    D --> P[Production: PixiJS, TTS, composition]
+    D --> V[Content engine: unit and terrain design]
+    V --> P[PixiJS playback and silent export]
+    P --> A[Planned: TTS and final composition]
     Q[Quality reviewer] -. findings .-> W
     Q -. findings .-> D
 ```
@@ -26,5 +28,12 @@ and layout/motion issues to directing. It must not make an agent silently rewrit
 agent's output to satisfy a check. Only changed artifacts and their affected dependencies
 should be regenerated. Publishing still requires the user's review.
 
-Research, writing, directing, and plan/text review are implemented. Actual PixiJS rendering,
-Gemini TTS production, final rendered-media review, and the coordinator are later components.
+Research, writing, directing, plan/text review, dynamic unit/terrain design, rendered-asset
+review, PixiJS playback and silent MP4 export are implemented. Gemini TTS production,
+final rendered-video review, publishing integration and the coordinator remain later components.
+
+Current defaults are Gemini 3.8 Flash with Gemini 3.5 Flash-Lite fallback for research
+and writing, and Qwen 3.8 27B through Groq for visuals. Visual appearance is independent
+of geographic placement and movement rules. A missing asset is generated as bounded
+vector data, rendered, reviewed and cached; it cannot alter the researched event plan.
+See [the content engine report](CONTENT_ENGINE_REPORT.md).

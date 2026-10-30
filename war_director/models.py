@@ -41,7 +41,8 @@ class AudioTiming(Model):
 class Terrain(Model):
     id: str
     label: str = Field(min_length=2, max_length=45)
-    kind: Literal["plain", "rocky_ground", "marsh", "ridge", "mountain", "forest", "river", "sea", "road", "settlement", "wall"]
+    # Appearance is extensible; movement rules still use explicit passability.
+    kind: str = Field(pattern=r"^[a-z][a-z0-9_]{1,39}$")
     shape: Literal["polygon", "polyline"]
     points: list[Point] = Field(min_length=2, max_length=20)
     passability: Literal["open", "slow", "blocked"]

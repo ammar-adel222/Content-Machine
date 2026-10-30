@@ -5,3 +5,4 @@ __pycache__/
 .coverage*
 htmlcov/
 output/
+node_modules/

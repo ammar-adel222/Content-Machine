@@ -51,7 +51,8 @@ there is no need to copy it. Only Tavily and the selected model providers are us
 & $researchPython -m war_research --selection-file 'output/research/THE-RUN/discovery.json' --env-file 'E:\AI matirial\content machine\war-tactics-agent\.env'
 ```
 
-Default text model: `gemini-3.5-flash-lite`. Use `--provider groq` to select Groq,
+Default research model: `gemini-3.8-flash`, automatically falling back to
+`gemini-3.5-flash-lite` within the same attempt budget. Use `--provider groq` to select Groq,
 `--model MODEL_ID` to override a model, or `--fallback groq` to opt into fallback.
 `GEMINI_MODEL` and `GROQ_MODEL` can also set defaults. Existing process environment
 variables take precedence over the file. Credentials are never saved in dossiers.
@@ -68,7 +69,8 @@ explicitly lists evidence gaps. Exit codes: **0** ready/discovery saved, **2** i
 
 ## Write or revise a script
 
-The writer defaults to Gemini's free API using `gemini-3.5-flash-lite` and the existing
+The writer defaults to Gemini's free API using `gemini-3.8-flash` with automatic
+`gemini-3.5-flash-lite` fallback and the existing
 `GEMINI_API_KEY`. Configure the text model with `GEMINI_MODEL` or `--model`. OpenRouter
 and Groq remain optional adapters for later comparisons; their use is explicit via
 `--provider`. OpenRouter requests are capped at zero-priced routes. No Tavily key is
@@ -102,7 +104,38 @@ the world and other scenes, but rechecks downstream continuity. `--retime --prev
 storyboard using `--plan PLAN`.
 
 These are plan artifacts, not rendered videos. Default model remains Gemini Flash-Lite.
-Other providers are not being compared. Inputs must use matching research/script versions.
+Director/reviewer commands retain their Gemini Flash-Lite defaults. Inputs must use
+matching research/script versions.
+
+## Create visuals and play the map
+
+The content engine defaults to **Qwen 3.8 27B through Groq** for unit/terrain design
+and image review. It reuses reviewed assets, creates missing vector designs, renders
+them for visual inspection, and compiles a local PixiJS playback bundle.
+Read the [engine report](docs/CONTENT_ENGINE_REPORT.md) and
+[model comparison](docs/VISUAL_MODEL_BENCHMARK.md), including GPT-OSS results.
+
+```powershell
+pnpm --dir renderer install --frozen-lockfile
+node renderer/node_modules/playwright/cli.js install chromium
+
+& $researchPython -m war_content 'output/research/RUN/dossier.json' 'output/writing/VERSION/script.json' 'output/directing/PLAN/storyboard.json' --env-file 'E:\AI matirial\content machine\war-tactics-agent\.env'
+
+& $researchPython -m http.server 8000 --bind 127.0.0.1 --directory output/content/THE-BUILD
+# Open http://127.0.0.1:8000/ in your browser.
+
+# In another terminal; requires FFmpeg on PATH.
+node renderer/export.mjs output/content/THE-BUILD preview.mp4 6 15
+```
+
+Custom units and terrain use validated geometry, not generated executable code. New
+geographic outlines come from the director; current layouts remain schematic. Playback
+and exports are silent until TTS/composition is connected. Models/quotas can leave a
+build `needs_revision`; those bundles contain a report and no playable scene.
+
+Visual overrides: `CONTENT_MODEL`, `CONTENT_REVIEW_MODEL`, `--provider`, `--model`,
+`--review-provider`, `--review-model`. Research/writing retain their separate Gemini
+defaults. Full cached builds with a saved manifest need no API calls.
 
 ## Tests
 
@@ -111,6 +144,7 @@ No API keys, paid requests, or test packages are needed:
 ```powershell
 & $researchPython -m unittest discover -v
 & $researchPython tools/check_tests.py
+node --test renderer/tests/*.test.mjs
 ```
 
 The second command also writes standard-library line-coverage reports under

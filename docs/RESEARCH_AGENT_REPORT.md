@@ -1,5 +1,7 @@
 # Research agent — implementation report
 
+> Current model policy: research now defaults to Gemini 3.8 Flash with automatic Gemini 3.5 Flash-Lite fallback. Explicit model/environment overrides remain supported. Original build verification below describes the initial implementation.
+
 ## What this component does
 
 This is the first implemented part of Content Machine edition two. It is a standalone

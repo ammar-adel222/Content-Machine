@@ -1,5 +1,7 @@
 # Writer model comparison — October 30, 2026
 
+> Updated configuration: research/writing now use Gemini 3.8 Flash with Gemini 3.5 Flash-Lite fallback. Qwen 3.8 27B through Groq is selected for visuals. See [the visual benchmark](VISUAL_MODEL_BENCHMARK.md) for the completed later comparison; earlier notes below remain historical.
+
 **Current decision:** use Gemini's free API for the writer and postpone other model
 comparisons, following the user's final direction. The notes below record exploratory
 checks from this build; they do not establish a writing-quality winner. Gemini TTS is a

@@ -7,7 +7,7 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from war_research.models import Dossier
-from war_research.providers import LanguageModel, ProviderError, load_env
+from war_research.providers import LanguageModel, ProviderError, load_env, model_routes
 
 from .agent import WritingAgent, WritingError
 from .models import Script, WritingRequest
@@ -39,13 +39,7 @@ def main(argv=None):
                                  scene_id=args.scene, max_model_calls=args.max_model_calls)
         if args.env_file.exists():
             load_env(args.env_file)
-        providers = []
-        defaults = {"openrouter": "nvidia/nemotron-3-ultra-550b-a55b:free",
-                    "gemini": "gemini-3.5-flash-lite", "groq": "qwen/qwen3.8-27b"}
-        for index, provider in enumerate(dict.fromkeys([args.provider, args.fallback])):
-            if provider:
-                model = (args.model if index == 0 else None) or os.environ.get(f"{provider.upper()}_MODEL", defaults[provider])
-                providers.append((provider, model, os.environ.get(f"{provider.upper()}_API_KEY", "")))
+        providers = model_routes(args.provider,args.model,args.fallback)
         script = WritingAgent(LanguageModel(providers)).write(dossier, request, previous)
         directory = save(script, args.output)
         print(f"Script {script.status}: {directory / 'script.md'}")
