@@ -31,7 +31,7 @@ async function start() {
   const app=new Application();await app.init({...size,backgroundColor:0xeee6d1,antialias:true,autoStart:false,preserveDrawingBuffer:true,preference:'webgl'});
   document.getElementById('screen').replaceChildren(app.canvas);
   if(data.battlefield) {
-    document.querySelector('small').textContent='Tactical terrain study · measured heights · silent preview';
+    document.querySelector('small').textContent=data.purpose==='battlefield_replay'?'Tactical battlefield · measured terrain · silent picture':'Tactical terrain study · measured heights · silent preview';
     const {createBattlefield}=await import('./battlefield.mjs');
     connectPlayback(data,app,await createBattlefield(data,app));return;
   }

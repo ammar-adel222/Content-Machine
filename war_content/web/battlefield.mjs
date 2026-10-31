@@ -1,4 +1,4 @@
-import {clamp} from './motion.mjs';
+import {clamp,cameraAt} from './motion.mjs';
 import {projectGeo} from './geography.mjs';
 import {coverCamera,filmOverlay} from './video.mjs';
 import {createUnits} from './units.mjs';
@@ -44,6 +44,7 @@ export async function createBattlefield(data,app) {
  const {Container,Graphics,Text,MeshSimple,Assets}=globalThis.PIXI,field=data.battlefield;
  const paper=0xeee8d8,ink=0x2b3d3e,b=field.layer.bounds,W=app.screen.width,H=app.screen.height;
  const study=data.purpose==='unit_animation_study';
+ const replay=data.purpose==='battlefield_replay',active=study||replay;
  function text(value,x,y,size=25,color=ink,width=950) {
   const t=new Text({text:value,style:{fontFamily:'Georgia, serif',fontSize:size,fill:color,wordWrap:true,wordWrapWidth:width,lineHeight:size*1.24}});
   t.position.set(x,y);app.stage.addChild(t);return t;
@@ -98,9 +99,9 @@ export async function createBattlefield(data,app) {
   const stick=new Graphics().moveTo(p.x,p.y).lineTo(p.x+dx,p.y-47).stroke({color:0x5f6e58,width:1});world.addChild(stick);
   const tag=new Text({text:'~'+h+' m',style:{fontFamily:'sans-serif',fontSize:20,fill:0x47583e}});tag.anchor.set(.5,1);tag.position.set(p.x+dx,p.y-49);world.addChild(tag);mapText.push({label:tag,anchor:p,offset:{x:dx,y:-49}});
  }
- const units=study?createUnits(data,world,p=>terrainPoint(field,p.x,p.y),()=>world.scale.x):null;
- const hud=filmOverlay(data,app,'Mapzen / USGS / Copernicus · GeoNames · © OSM contributors · openstreetmap.org/copyright',
-  study?'Animation study · illustrative deployments · '+(data.soundtrack?(data.soundtrack.has_music?'effects + quiet music':'sound effects'):'silent'):'Terrain study · modern stream course · '+field.exaggeration+'× height emphasis');
+ const units=active?createUnits(data,world,p=>terrainPoint(field,p.x,p.y),()=>world.scale.x):null;
+ const hud=filmOverlay(data,app,replay?data.terrain_credits:'Mapzen / USGS / Copernicus · GeoNames · © OSM contributors · openstreetmap.org/copyright',
+  replay?(data.spatial_binding?.reviewed?'Symbolic forces · reviewed coordinate binding · silent picture':'Illustrative unit positions · silent render test'):study?'Animation study · illustrative deployments · '+(data.soundtrack?(data.soundtrack.has_music?'effects + quiet music':'sound effects'):'silent'):'Terrain study · modern stream course · '+field.exaggeration+'× height emphasis');
  const bounds=terrainBounds(field);
  const center=kind=>{
   const points=field.features.filter(f=>f.kind===kind).flatMap(f=>f.points).map(([lon,lat])=>projected(lon,lat));
@@ -118,7 +119,9 @@ export async function createBattlefield(data,app) {
   if(index===2&&W>H&&villageY.length){const p=clamp((time-data.scenes[index].start)/(data.scenes[index].end-data.scenes[index].start));target.y=Math.min(...villageY)+(Math.max(...villageY)-Math.min(...villageY))*p;}
   if(study){const p=terrainPoint(field,data.animation_camera.x,data.animation_camera.y);Object.assign(target,p);Object.assign(previous,p);}
   const t=clamp((time-data.scenes[index].start)/1.2),ease=t*t*(3-2*t);
-  const camera=coverCamera(bounds,W,H,{x:previous.x+(target.x-previous.x)*ease,y:previous.y+(target.y-previous.y)*ease});
+  const shot=replay?cameraAt(data.scenes,time):null;
+  const focus=shot?terrainPoint(field,shot.x,shot.y):{x:previous.x+(target.x-previous.x)*ease,y:previous.y+(target.y-previous.y)*ease};
+  const camera=coverCamera(bounds,W,H,focus,shot?1.03/shot.width:1.03);
   world.scale.set(camera.scale);world.position.set(camera.x,camera.y);
   const occupied=units?.render(time)??[];
   hud.update(time,data.scenes[index].labels.join(' · '));
@@ -129,7 +132,7 @@ export async function createBattlefield(data,app) {
    const sx=camera.x+(anchor.x+offset.x)*camera.scale,sy=camera.y+(anchor.y+offset.y)*camera.scale;
    const width=label.width*camera.scale,height=label.height*camera.scale;
    label.visible=px>=10&&px<=W-10&&py>=10&&py<=H-10;
-   if(study&&occupied.some(unit=>Math.hypot((unit.point.x-anchor.x)*camera.scale,(unit.point.y-anchor.y)*camera.scale)<95))label.visible=false;
+   if(active&&occupied.some(unit=>Math.hypot((unit.point.x-anchor.x)*camera.scale,(unit.point.y-anchor.y)*camera.scale)<95))label.visible=false;
    if(label.visible){
     const x=clamp(sx,18+width/2,W-18-width/2),y=clamp(sy,120+height,bottom);
     label.position.set((x-camera.x)/camera.scale-(item.holder?anchor.x:0),(y-camera.y)/camera.scale-(item.holder?anchor.y:0));
@@ -140,9 +143,9 @@ export async function createBattlefield(data,app) {
   const scaleKm=(b.east-b.west)*Math.cos((b.north+b.south)/2*Math.PI/180)*111.32;
   const km=[.25,.5,1,2,5].filter(k=>850/scaleKm*camera.scale*k<=180).pop()??.1,length=850/scaleKm*camera.scale*km;
   scaleText.text=km+' km';bar.clear().moveTo(W-242,59).lineTo(W-242+length,59).stroke({color:ink,width:3});
-  streams.alpha=index===1?1:.65;
-  for(const shape of ridge)shape.alpha=!study&&index===0?.9:0;
-  for(const shape of villages)shape.alpha=index===2?1:.8;
+  streams.alpha=replay?.75:index===1?1:.65;
+  for(const shape of ridge)shape.alpha=!active&&index===0?.9:0;
+  for(const shape of villages)shape.alpha=replay?.85:index===2?1:.8;
   app.renderer.render(app.stage);
  };
 }

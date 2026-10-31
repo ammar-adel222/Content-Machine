@@ -43,8 +43,10 @@ should be regenerated. Publishing still requires the user's review.
 
 Research, writing, directing, plan/text review, dynamic unit/terrain design, rendered-asset
 review, PixiJS playback and silent MP4 export are implemented. [Gemini TTS and measured
-timing](NARRATION_TIMING_REPORT.md) are now connected. Full rendered-video review,
-publishing integration and visual production graph adapters remain later components.
+timing](NARRATION_TIMING_REPORT.md) are now connected. [Visual production adapters](VISUAL_PRODUCTION_WORKFLOW_REPORT.md)
+connect independent terrain/unit design, sampled frame review and silent picture export.
+New-project effects/music preparation, full rendered-video review and publishing
+integration remain later components.
 
 Current defaults are Gemini 3.8 Flash with Gemini 3.5 Flash-Lite fallback for research
 and writing, and Qwen 3.8 27B through Groq for visuals. Visual appearance is independent

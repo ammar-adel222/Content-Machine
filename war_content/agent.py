@@ -73,9 +73,10 @@ class Library:
             temporary.unlink(missing_ok=True)
 
 
-def check_manifest(manifest, dossier, plan):
+def check_manifest(manifest, dossier, plan, category=None):
     claims = {c.id:c.statement for c in dossier.findings.claims}
     objects = {(category,x.id):x for category,items in (("unit",plan.blueprint.forces),("terrain",plan.blueprint.terrain)) for x in items}
+    if category:objects={key:value for key,value in objects.items() if key[0]==category}
     seen, issues = set(), []
     for binding in manifest.bindings:
         key = (binding.brief.category,binding.object_id)

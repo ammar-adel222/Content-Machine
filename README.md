@@ -244,7 +244,9 @@ the exact final video. Its first live adapters support music/audio-only revision
 Research, writing, script review, direction and plan review are now connected through
 [authoring adapters](docs/WORKFLOW_AUTHORING_REPORT.md), with bounded review/repair
 loops. [Gemini narration and measured timing](docs/NARRATION_TIMING_REPORT.md) are
-also connected. Visual production integration remains pending. Independent agent
+also connected. [Terrain/unit production, rendered frame review and silent picture export](docs/VISUAL_PRODUCTION_WORKFLOW_REPORT.md)
+are now connected; fresh projects require an explicit terrain mode. Effects/music
+preparation and final composition with generated narration are next. Independent agent
 commands continue to work.
 
 ```powershell

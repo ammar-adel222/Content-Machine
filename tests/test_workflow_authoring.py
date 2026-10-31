@@ -235,7 +235,7 @@ class AuthoringTests(unittest.TestCase):
         self.runner.run()
         def unavailable():raise AssertionError('No client should be initialized.')
         Runner(self.store,adapters(unavailable,unavailable)).run()
-        with contextlib.redirect_stdout(io.StringIO()),patch('war_workflow.authoring.adapters',return_value=self.adapters),patch('war_workflow.speech.adapters',return_value={}):
+        with contextlib.redirect_stdout(io.StringIO()),patch('war_workflow.authoring.adapters',return_value=self.adapters),patch('war_workflow.speech.adapters',return_value={}),patch('war_workflow.production.adapters',return_value={}):
             self.assertEqual(main(['run',str(self.store.root),'--env-file',str(self.root/'absent.env')]),2)
 
     def test_cached_script_rebinds_current_provenance_without_regeneration(self):

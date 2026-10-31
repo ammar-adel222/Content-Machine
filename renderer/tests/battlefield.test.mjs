@@ -71,5 +71,17 @@ test('actual WebGL battlefield mesh loads with a stream and village and supports
   assert.ok(new Set(actors.map(a=>a.x+','+a.y)).size===4);
   await page.evaluate(()=>contentEngine.renderAt(17));assert.notDeepEqual(await page.locator('canvas').screenshot(),movingFrame);
   await page.evaluate(()=>contentEngine.renderAt(4));assert.deepEqual(await page.locator('canvas').screenshot(),movingFrame);
+  // Production replay uses the same terrain/units with director-controlled camera cues.
+  data.purpose='battlefield_replay';data.terrain_credits='Synthetic terrain fixture';
+  data.scenes[0].focus={x:.35,y:.55};data.scenes[0].view_width=1;
+  data.scenes[1].focus={x:.65,y:.45};data.scenes[1].view_width=.6;
+  await page.goto(`http://127.0.0.1:${server.address().port}/?aspect=portrait`);await page.waitForFunction(()=>globalThis.contentReady||globalThis.contentError);
+  assert.equal(await page.evaluate(()=>globalThis.contentError),undefined);
+  assert.match(await page.locator('small').textContent(),/Tactical battlefield/);
+  await page.evaluate(()=>contentEngine.renderAt(4));const replayFrame=await page.locator('canvas').screenshot();
+  const replayActors=await page.evaluate(()=>{let n=0;function visit(node){if(node.label?.startsWith('unit:')&&node.alpha===1)n++;for(const c of node.children??[])visit(c);}visit(contentEngine.app.stage);return n;});
+  assert.equal(replayActors,4);
+  await page.evaluate(()=>contentEngine.renderAt(17));assert.notDeepEqual(await page.locator('canvas').screenshot(),replayFrame);
+  await page.evaluate(()=>contentEngine.renderAt(4));assert.deepEqual(await page.locator('canvas').screenshot(),replayFrame);
  }finally{await browser.close();if(server)await new Promise(r=>server.close(r));}
 });

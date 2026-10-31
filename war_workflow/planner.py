@@ -34,9 +34,9 @@ SPECS={
     'effects':Spec({'timing':'effects','direction':'sound_profiles'}),
     'music_source':Spec({'timing':'duration'}),
     'mix':Spec({'narration':'waveform','effects':'waveform','music_source':'waveform'}),
-    'visual_review':Spec({'terrain':'content','assets':'content','timing':'visual','writing':'captions'},review=True),
+    'visual_review':Spec({'research':'content','terrain':'content','assets':'content','timing':'visual','writing':'content'},review=True),
     'audio_review':Spec({'mix':'content'},review=True),
-    'picture':Spec({'terrain':'content','assets':'content','timing':'visual','writing':'captions'},('visual_review','audio_review')),
+    'picture':Spec({'terrain':'content','assets':'content','timing':'visual','writing':'captions'},('visual_review',)),
     'mux':Spec({'picture':'content','mix':'content'},('visual_review','audio_review')),
     'final_review':Spec({'mux':'content'},review=True),
 }

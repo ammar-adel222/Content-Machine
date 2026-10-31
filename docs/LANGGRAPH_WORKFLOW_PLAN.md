@@ -5,7 +5,9 @@ projects, edit routing, artifact receipts, budgets, real LangGraph checkpointing
 human-review interrupts and live media-edit adapters. The [authoring integration](WORKFLOW_AUTHORING_REPORT.md)
 also connects research, writing, script/plan review and direction with bounded repair
 loops. [Gemini narration and measured timing](NARRATION_TIMING_REPORT.md) are also live.
-Visual production adapters, parallel execution and publishing below remain planned.
+[Visual production](VISUAL_PRODUCTION_WORKFLOW_REPORT.md) now connects terrain/unit
+design, sampled rendered review and silent export. New-project effects/music preparation,
+parallel execution and publishing below remain planned.
 Independent CLIs are preserved.
 
 ## Main decision

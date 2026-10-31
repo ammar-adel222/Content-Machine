@@ -1,5 +1,9 @@
 # Gemini narration and measured battle timing
 
+Follow-up: [visual production](VISUAL_PRODUCTION_WORKFLOW_REPORT.md) now connects
+terrain, unit assets, sampled frame review and silent picture export. Scope and test
+counts below record the earlier narration milestone.
+
 ## What is implemented
 
 `war_narration/` independently generates narration from a ready writer `Script`.
