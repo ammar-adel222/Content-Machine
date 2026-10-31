@@ -1,5 +1,9 @@
 # Content engine — build report
 
+> Update: the independent [sound-effects stage](SOUND_EFFECTS_REPORT.md) now adds
+> synchronized Foley, narration mixing, browser audio and AAC export. The original
+> silent content build is documented below for context.
+
 > Update: the later [geography stage](GEOGRAPHY_ENGINE_REPORT.md) adds real coastlines
 > and elevation-derived relief. The original schematic build and its initial limits
 > are documented below for context.

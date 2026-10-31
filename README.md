@@ -140,12 +140,26 @@ node renderer/export.mjs output/content/THE-BUILD preview.mp4 6 15
 
 Custom units and terrain use validated geometry, not generated executable code.
 Original director layouts are schematic; the geographic stage below adds real outlines and relief. Playback
-and exports are silent until TTS/composition is connected. Models/quotas can leave a
+and exports start silent; the sound-effects stage below adds Foley and optional narration. Models/quotas can leave a
 build `needs_revision`; those bundles contain a report and no playable scene.
 
 Visual overrides: `CONTENT_MODEL`, `CONTENT_REVIEW_MODEL`, `--provider`, `--model`,
 `--review-provider`, `--review-model`. Research/writing retain their separate Gemini
 defaults. Full cached builds with a saved manifest need no API calls.
+
+## Design a missing unit independently
+
+The [unit designer](docs/UNIT_DESIGN_REPORT.md) creates a unit from a brief, renders
+and visually reviews it, repairs rejected designs once, and caches approved geometry.
+It shares the production asset path; new types need no fixed catalog or renderer code.
+
+```powershell
+& $researchPython -m war_content.unit_cli examples/units/war_elephant.json --env-file 'E:\AI matirial\content machine\war-tactics-agent\.env'
+```
+
+Each run saves a result, an inspection PNG and a Markdown report under `output/units/`.
+Units use recognizable silhouettes and consistent size for vertical phone screens.
+Historical deployment still requires the researched director plan and manifest.
 
 ## Build a geographic map
 
@@ -176,6 +190,36 @@ It is a terrain preview, not a reconstructed battle replay. See the
 & $researchPython -m war_content.play --mode battlefield
 & $researchPython -m war_content.play --mode campaign
 ```
+
+## Unit movement preview
+
+The [unit animation layer](docs/UNIT_ANIMATION_REPORT.md) adds staggered departure,
+individual turns, route-following columns, formation transitions and stable halts.
+It uses the approved silhouettes and can render on measured battlefield terrain.
+
+```powershell
+& $researchPython -m war_content.animation_study --terrain output/content/TERRAIN-BUNDLE
+& $researchPython -m war_content.play output/content/ANIMATION-BUNDLE
+```
+
+The generated study is explicitly illustrative and not publishing-ready. It runs
+offline using approved library assets; source-grounded production routes remain
+the director's responsibility. Playback is silent.
+
+## Sound effects
+
+The [sound-effects stage](docs/SOUND_EFFECTS_REPORT.md) compiles movement Foley from
+the saved animation timeline, supports original synthesis or replacement recordings,
+and ducks effects beneath supplied narration. Weapon sounds require explicit cues.
+
+```powershell
+& $researchPython -m war_content.sound_effects output/content/ANIMATION-BUNDLE --profiles examples/sound/unit_animation.json --video output/units/unit-animation.mp4
+& $researchPython -m war_content.play output/content/SOUND-BUNDLE
+```
+
+Outputs include editable sound configuration, a cue plan, WAV stems and a Markdown
+report. Sound-enabled bundles play audio with Play/Pause, seek and mute controls;
+normal MP4 export includes the soundtrack automatically. Music is separate.
 
 ## Tests
 

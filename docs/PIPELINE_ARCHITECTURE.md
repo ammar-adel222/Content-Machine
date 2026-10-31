@@ -48,3 +48,17 @@ Battlefield views have a separate tilted-heightfield renderer and an Austerlitz
 [terrain study](BATTLEFIELD_TERRAIN_REPORT.md). Campaign maps retain their overview
 layout. The study is explicitly non-publishable; historically located formations,
 crossings and movement corridors still require a checked spatial director plan.
+
+The independent [unit designer](UNIT_DESIGN_REPORT.md) now shares its generation,
+rendered review, repair and cache path with production content builds. New unit
+identities use descriptive briefs, without requiring new renderer code. Symbol
+dimensions are normalized by actual geometry for consistent phone-screen readability.
+
+The shared [unit animation layer](UNIT_ANIMATION_REPORT.md) evaluates independent
+subgroup movement deterministically. A separate offline study demonstrates it on
+the battlefield surface with illustrative, non-publishable deployments.
+
+The independent [sound-effects stage](SOUND_EFFECTS_REPORT.md) consumes the saved
+timeline and explicit unit sound profiles. It produces editable cue data, effects
+and narration stems, a ducked mix, and a sound-enabled bundle. Audio drives preview
+playback timing; the exporter includes its verified soundtrack. Music is separate.

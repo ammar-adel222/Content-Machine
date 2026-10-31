@@ -1,11 +1,11 @@
-import {cameraAt,unitState,clamp} from './motion.mjs';
+import {cameraAt,clamp} from './motion.mjs';
 import {drawDesign as ink,palette as roles} from './symbols.mjs';
+import {createUnits} from './units.mjs';
 import {placeLabel} from './labels.mjs';
 import {connectPlayback} from './playback.mjs';
 import {videoSize,filmOverlay,coverCamera} from './video.mjs';
 const {Application,Container,Graphics,Text}=globalThis.PIXI;
 const W=1080,H=1920;
-const sideColors=[0x477f92,0xb2634e,0x8b7eae,0x5b8866];
 const terrainColors={sea:0xa6c2c5,river:0x9ebec1,plain:0xe1dbbd,forest:0xa8b495,mountain:0xb6b29c,ridge:0xc6bd9f,marsh:0xb6c2a1,rocky_ground:0xc7c0a9};
 function label(text,x,y,size,color=roles.ink,width=900) {
   const t=new Text({text,style:{fontFamily:'Georgia, serif',fontSize:size,fill:color,wordWrap:true,wordWrapWidth:width,lineHeight:size*1.24}});
@@ -74,17 +74,8 @@ async function start() {
     const t=label(terrain.label,0,0,23,0x47594e,220);
     terrainLabels.push({point:p,text:t});
   }
-  const sides=[...new Set(data.blueprint.forces.map(f=>f.side))],units=[];
-  const actionDefs=new Map(data.blueprint.scenes.flatMap(s=>s.actions.map(a=>[a.id,a])));
-  const actions=data.timeline.map(row=>({...actionDefs.get(row.action_id),...row}));
-  for(const force of data.blueprint.forces) {
-    const count=data.blueprint.scale==='campaign'?1:force.subgroups,color=sideColors[sides.indexOf(force.side)%sideColors.length];
-    for(let i=0;i<count;i++) {
-      const holder=new Container(),halo=new Graphics().circle(0,0,28).fill({color,alpha:.16}).stroke({color,width:2,alpha:.55});
-      const body=ink(data.assets[data.bindings.unit[force.id]],color,count===1?22:15);
-      holder.addChild(halo,body);world.addChild(holder);units.push({force,i,count,holder,halo});
-    }
-  }
+  const sides=[...new Set(data.blueprint.forces.map(f=>f.side))];
+  const units=createUnits(data,world,p=>({x:p.x*W,y:p.y*H}),()=>world.scale.x);
   const leaders=new Graphics();app.stage.addChild(leaders);
   for(const item of terrainLabels)app.stage.addChild(item.text);
   const hud=filmOverlay(data,app,'Schematic geography · symbolic force groups',sides.join(' / '));
@@ -93,13 +84,9 @@ async function start() {
     const camera=cameraAt(data.scenes,time),framing=coverCamera({x:(camera.x-camera.width/2)*W,y:(camera.y-camera.width/2)*H,width:camera.width*W,height:camera.width*H},SW,SH,{x:camera.x*W,y:camera.y*H});
     const scale=framing.scale;world.scale.set(scale);world.position.set(framing.x,framing.y);
     const occupied=[];
-    for(const unit of units) {
-      const state=unitState(unit.force,actions,time,unit.i,unit.count);
-      unit.holder.position.set(state.x*W,state.y*H);unit.holder.rotation=state.angle;
-      unit.holder.alpha=state.alpha;unit.halo.alpha=.25+state.highlight*.75;
-      // Keep markers legible under camera zoom without inflating subgroup spacing.
-      unit.holder.scale.set(1/Math.sqrt(scale));
-      if(state.alpha>.2)occupied.push({x:world.x+state.x*W*scale-25,y:world.y+state.y*H*scale-25,width:50,height:50});
+    for(const unit of units.render(time)){
+      const diameter=unit.diameter;
+      occupied.push({x:world.x+unit.point.x*scale-diameter/2,y:world.y+unit.point.y*scale-diameter/2,width:diameter,height:diameter});
     }
     leaders.clear();let visibleLabels=0;
     for(const item of terrainLabels) {

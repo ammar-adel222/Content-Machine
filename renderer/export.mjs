@@ -2,7 +2,8 @@
 import {chromium} from 'playwright';
 import {createServer} from 'node:http';
 import {createReadStream} from 'node:fs';
-import {mkdir,stat} from 'node:fs/promises';
+import {mkdir,stat,readFile} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
 import {resolve,extname,sep} from 'node:path';
 import {spawn} from 'node:child_process';
 const [bundle,output='preview.mp4',durationArg,fpsArg='30',aspect='portrait']=process.argv.slice(2);
@@ -17,7 +18,7 @@ const server=createServer(async(req,res)=>{
     if(!path.startsWith(root+sep) && path!==root){res.writeHead(403).end();return;}
     const file=path===root?resolve(root,'index.html'):path;
     if(!(await stat(file)).isFile()){res.writeHead(404).end();return;}
-    res.setHeader('Content-Type',({'.html':'text/html','.mjs':'text/javascript','.js':'text/javascript','.json':'application/json','.png':'image/png'})[extname(file)]??'application/octet-stream');
+    res.setHeader('Content-Type',({'.html':'text/html','.mjs':'text/javascript','.js':'text/javascript','.json':'application/json','.png':'image/png','.wav':'audio/wav'})[extname(file)]??'application/octet-stream');
     createReadStream(file).pipe(res);
   }catch{res.writeHead(404).end();}
 });
@@ -37,16 +38,24 @@ try {
     await page.locator('canvas').screenshot({path:target});
   } else {
     if(!target.endsWith('.mp4')||duration<=0)throw Error('Use .png or .mp4, with positive video duration.');
-    encoder=spawn('ffmpeg',['-y','-loglevel','error','-f','image2pipe','-vcodec','png','-r',String(fps),'-i','pipe:0','-an','-c:v','libx264','-pix_fmt','yuv420p','-movflags','+faststart',target],{stdio:['pipe','ignore','pipe'],windowsHide:true});
+    const soundtrack=await page.evaluate(()=>contentEngine.data.soundtrack);
+    const audioArgs=[];
+    if(soundtrack){
+      if(soundtrack.file!=='soundtrack.wav')throw Error('Unsupported soundtrack filename.');
+      const file=resolve(root,soundtrack.file),hash=createHash('sha256').update(await readFile(file)).digest('hex');
+      if(hash!==soundtrack.sha256)throw Error('Soundtrack changed after compilation. Rebuild sound effects.');
+      audioArgs.push('-i',file,'-map','0:v:0','-map','1:a:0','-c:a','aac','-b:a','192k','-t',String(duration));
+    }else audioArgs.push('-an');
+    encoder=spawn('ffmpeg',['-y','-loglevel','error','-f','image2pipe','-vcodec','mjpeg','-r',String(fps),'-i','pipe:0',...audioArgs,'-c:v','libx264','-pix_fmt','yuv420p','-movflags','+faststart',target],{stdio:['pipe','ignore','pipe'],windowsHide:true});
     let failure='';encoder.stderr.on('data',chunk=>failure=(failure+chunk.toString()).slice(0,2000));
     const completed=new Promise((r,j)=>{encoder.on('error',j);encoder.on('close',code=>code===0?r():j(Error('FFmpeg failed: '+failure)));});
     // Attach a handler immediately, even if the encoder exits before frame capture.
     completed.catch(()=>{});encoder.stdin.on('error',()=>{});
     for(let frame=0;frame<Math.ceil(duration*fps);frame++) {
       await page.evaluate(t=>contentEngine.renderAt(t),frame/fps);
-      const png=await page.locator('canvas').screenshot();
+      const frameImage=await page.locator('canvas').screenshot({type:'jpeg',quality:92});
       if(encoder.exitCode!==null)throw Error('FFmpeg exited during capture.');
-      if(!encoder.stdin.write(png))await new Promise((r,j)=>{
+      if(!encoder.stdin.write(frameImage))await new Promise((r,j)=>{
         const done=()=>{encoder.stdin.removeListener('error',failed);r();};
         const failed=error=>{encoder.stdin.removeListener('drain',done);j(error);};
         encoder.stdin.once('drain',done);encoder.stdin.once('error',failed);

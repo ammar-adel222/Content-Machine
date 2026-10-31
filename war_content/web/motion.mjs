@@ -14,36 +14,112 @@ export function routeSample(points,progress) {
   }
   return {...points[0],angle:0};
 }
+// Angles take the short route across -pi/pi, including deterministic U-turns.
+export const angleDelta=(a,b)=>Math.atan2(Math.sin(b-a),Math.cos(b-a));
+export const mixAngle=(a,b,t)=>a+angleDelta(a,b)*clamp(t);
+const aspect=16/9;
+const routeCache=new WeakMap();
+function routeInfo(points){
+ if(!routeCache.has(points)){
+  const segments=[];let total=0;
+  for(let i=1;i<points.length;i++){
+   const a=points[i-1],b=points[i],length=Math.hypot(b.x-a.x,(b.y-a.y)*aspect);
+   if(length>1e-9){segments.push({a,b,length,start:total,angle:Math.atan2((b.y-a.y)*aspect,b.x-a.x)});total+=length;}
+  }
+  routeCache.set(points,{segments,total});
+ }
+ return routeCache.get(points);
+}
+function travelFrame(points,progress,trail=0){
+ const {segments,total}=routeInfo(points);
+ if(!segments.length)return {...points[0],angle:0};
+ const distance=clamp(progress)*total+trail;
+ const segment=segments.find(s=>distance<=s.start+s.length)??segments.at(-1);
+ const t=(distance-segment.start)/segment.length;
+ const p={x:segment.a.x+(segment.b.x-segment.a.x)*t,y:segment.a.y+(segment.b.y-segment.a.y)*t,angle:segment.angle};
+ // Rotate through corners without rounding the authored route into nearby terrain.
+ for(let i=1;i<segments.length;i++){
+  const before=segments[i-1],after=segments[i],radius=Math.min(.055,before.length*.4,after.length*.4);
+  if(distance>=after.start-radius&&distance<=after.start+radius){p.angle=mixAngle(before.angle,after.angle,smooth((distance-after.start+radius)/(2*radius)));break;}
+ }
+ return p;
+}
 export function formationOffset(kind,index,count) {
-  const center=index-(count-1)/2;
-  if(kind==='column') return {x:-index*0.021,y:0};
-  if(kind==='wedge') return {x:-Math.abs(center)*0.019,y:center*0.018};
-  if(kind==='dispersed') return {x:(index%3-1)*0.026,y:(Math.floor(index/3)-(Math.ceil(count/3)-1)/2)*0.023};
-  if(kind==='campaign') return {x:0,y:0};
-  return {x:0,y:center*0.022};
+ const center=index-(count-1)/2;
+ const spacing=.084*Math.min(1,8/Math.max(1,count));
+ if(kind==='column')return {x:-index*spacing,y:0};
+ if(kind==='wedge')return {x:-Math.abs(center)*spacing*.81,y:center*spacing*.94};
+ if(kind==='dispersed')return {x:(index%3-1)*spacing*1.1,y:(Math.floor(index/3)-(Math.ceil(count/3)-1)/2)*spacing*1.1};
+ if(kind==='campaign')return {x:0,y:0};
+ return {x:0,y:center*spacing};
+}
+// Short speed ramps with a steady marching middle, rather than constant easing.
+export function travelEase(value,ramp=.12){
+ const t=clamp(value),r=clamp(ramp,.001,.49),speed=1/(1-r);
+ if(t<r)return speed*t*t/(2*r);
+ if(t>1-r)return 1-speed*(1-t)*(1-t)/(2*r);
+ return speed*(t-r/2);
+}
+function rotateOffset(offset,angle){
+ const c=Math.cos(angle),s=Math.sin(angle);
+ return {x:offset.x*c-offset.y*s,y:(offset.x*s+offset.y*c)/aspect};
+}
+function formationPoint(route,progress,formation,index,count){
+ const offset=formationOffset(formation,index,count),p=travelFrame(route,progress,offset.x);
+ const lateral=rotateOffset({x:0,y:offset.y},p.angle);
+ return {x:p.x+lateral.x,y:p.y+lateral.y,angle:p.angle};
+}
+function formationCenter(action,progress,count){
+ const center=travelFrame(action.route,progress),mean={x:0,y:0};
+ for(let i=0;i<count;i++){const p=formationPoint(action.route,progress,action.formation,i,count);mean.x+=(p.x-center.x)/count;mean.y+=(p.y-center.y)/count;}
+ return mean;
+}
+function deployOffset(from,to,oldCenter,newCenter,t){
+ // Rotate ranks around the group center instead of pulling them through one
+ // another when a trailing column opens into a transverse line.
+ const a={x:from.x-oldCenter.x,y:(from.y-oldCenter.y)*aspect},b={x:to.x-newCenter.x,y:(to.y-newCenter.y)*aspect};
+ const radius=Math.hypot(a.x,a.y)*(1-t)+Math.hypot(b.x,b.y)*t;
+ const angle=mixAngle(Math.atan2(a.y,a.x),Math.atan2(b.y,b.x),t);
+ return {x:oldCenter.x*(1-t)+newCenter.x*t+Math.cos(angle)*radius,
+  y:oldCenter.y*(1-t)+newCenter.y*t+Math.sin(angle)*radius/aspect};
+}
+export function motionPose(kind,time,index,moving,seed=0){
+ const phase=time*(kind==='cavalry'?3.2:2.2)*Math.PI*2+index*2.399+seed;
+ const mobile=kind==='infantry'||kind==='cavalry';
+ if(!mobile||moving<=0)return {bob:0,roll:0};
+ return {bob:Math.sin(phase)*1.8*moving,roll:Math.sin(phase/2)*.025*moving};
 }
 export function unitState(force,actions,time,index=0,count=1) {
-  let result={...force.position,angle:0,alpha:1,highlight:0,formation:'line'};
-  let intro=actions.find(a=>a.kind==='introduce' && a.unit_id===force.id);
-  if(!intro || time<intro.start_sec) return {...result,alpha:0};
-  let formation='line';
-  for(const a of actions.filter(a=>a.unit_id===force.id && a.kind!=='introduce').sort((a,b)=>a.start_sec-b.start_sec)) {
-    if(time<a.start_sec) continue;
-    const span=a.end_sec-a.start_sec;
-    let t=clamp((time-a.start_sec)/span);
-    if(a.kind==='move' || a.kind==='withdraw') {
-      // All followers finish at the authored endpoint, despite staggered departure.
-      const delay=(index/Math.max(1,count-1))*a.stagger;
-      t=smooth((t-delay)/(1-delay));
-      result={...result,...routeSample(a.route,t)};
-      formation=a.formation;
-    }
-    if(a.kind==='fade') result.alpha=1-smooth(t);
-    if(a.kind==='highlight' && time<=a.end_sec) result.highlight=Math.sin(Math.PI*t);
-    if(a.kind==='engage' && time<=a.end_sec) result.highlight=0.8;
+ const intro=actions.find(a=>a.kind==='introduce'&&a.unit_id===force.id);
+ const initial=formationOffset('line',index,count);
+ let center={...force.position},offset=rotateOffset(initial,0),angle=0,formation='line',moving=0,alpha=1,highlight=0;
+ let previousMove=null;
+ if(!intro||time<intro.start_sec)return {...center,angle,formation,moving,alpha:0,highlight,bob:0,roll:0};
+ alpha=smooth((time-intro.start_sec)/.3);
+ for(const a of actions.filter(a=>a.unit_id===force.id&&a.kind!=='introduce').sort((a,b)=>a.start_sec-b.start_sec)){
+  if(time<a.start_sec)continue;
+  const span=a.end_sec-a.start_sec,t=span>0?clamp((time-a.start_sec)/span):1;
+  if(a.kind==='move'||a.kind==='withdraw'){
+   if(!a.route?.length)continue;
+   // Bounded independent departures; every actor still stops within the cue.
+   const delay=Math.min((a.stagger??.15)*span,1.2)*index/Math.max(1,count-1);
+   const elapsed=time-a.start_sec-delay,duration=Math.max(.001,span-delay);
+   const progress=travelEase(elapsed/duration),raw=travelFrame(a.route,progress);
+   const target=formationPoint(a.route,progress,a.formation,index,count);
+   const blend=smooth((time-a.start_sec)/Math.min(.9,span*.3||.001));
+   const before=previousMove?formationCenter(previousMove,1,count):{x:0,y:0};
+   const after=formationCenter(a,progress,count);
+   offset=deployOffset(offset,{x:target.x-raw.x,y:target.y-raw.y},before,after,blend);
+   center=raw;angle=mixAngle(angle,target.angle,blend);formation=a.formation;
+   moving=smooth(elapsed/.4)*smooth((duration-elapsed)/.4);
+   previousMove=a;
   }
-  const offset=formationOffset(formation,index,count), c=Math.cos(result.angle),s=Math.sin(result.angle);
-  return {...result,x:result.x+offset.x*c-offset.y*s,y:result.y+(offset.x*s+offset.y*c)*9/16,formation};
+  if(a.kind==='fade')alpha*=1-smooth(t);
+  if(a.kind==='highlight'&&time<=a.end_sec)highlight=Math.max(highlight,Math.sin(Math.PI*t));
+  if(a.kind==='engage'&&time<=a.end_sec)highlight=Math.max(highlight,.8*Math.sin(Math.PI*t));
+ }
+ const seed=[...force.id].reduce((n,c)=>n+c.charCodeAt(0),0);
+ return {x:center.x+offset.x,y:center.y+offset.y,angle,formation,moving,alpha,highlight,...motionPose(force.kind,time,index,moving,seed)};
 }
 export function cameraAt(scenes,time) {
   let index=scenes.findIndex(s=>time>=s.start && time<s.end);

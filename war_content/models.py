@@ -90,6 +90,7 @@ class Asset(Model):
     design_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
     review: DesignReview
     review_basis: Literal["vector_data", "rendered_image"] = "vector_data"
+    review_version: Literal[1, 2] = 1
     models_used: list[str]
 
 

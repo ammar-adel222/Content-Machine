@@ -56,5 +56,20 @@ test('actual WebGL battlefield mesh loads with a stream and village and supports
    assert.equal(pixels.width,aspect==='portrait'?1080:1920);assert.equal(pixels.height,aspect==='portrait'?1920:1080);
    for(const rgba of pixels.corners){assert.equal(rgba[3],255);assert.notDeepEqual(rgba.slice(0,3),[238,232,216]);}
   }
+  // Exercise the actual projected choreography branch, not only the pure math.
+  const move={id:'advance',kind:'move',unit_id:'unit',formation:'column',stagger:.2,
+   route:[{x:.3,y:.7},{x:.3,y:.5},{x:.65,y:.4}]};
+  Object.assign(data,{purpose:'unit_animation_study',animation_camera:{x:.5,y:.5},
+   blueprint:{scale:'tactical',forces:[{id:'unit',kind:'infantry',side:'Blue',position:move.route[0],subgroups:4}],scenes:[{actions:[move]}]},
+   timeline:[{kind:'introduce',unit_id:'unit',start_sec:0,end_sec:0},{action_id:'advance',kind:'move',unit_id:'unit',start_sec:1,end_sec:12}],
+   bindings:{unit:{unit:'shape'}},assets:{shape:{primitives:[{kind:'ellipse',x:0,y:0,width:.8,height:.8,fill:'team',stroke:'ink',stroke_width:.05}]}}});
+  await page.goto(`http://127.0.0.1:${server.address().port}/?aspect=portrait`);await page.waitForFunction(()=>globalThis.contentReady||globalThis.contentError);
+  assert.equal(await page.evaluate(()=>globalThis.contentError),undefined);
+  await page.evaluate(()=>contentEngine.renderAt(4));const movingFrame=await page.locator('canvas').screenshot();
+  const actors=await page.evaluate(()=>{const all=[];function visit(node){if(node.label?.startsWith('unit:'))all.push({x:node.x,y:node.y,angle:node.rotation,alpha:node.alpha});for(const child of node.children??[])visit(child);}visit(contentEngine.app.stage);return all;});
+  assert.equal(actors.length,4);assert.ok(actors.every(a=>a.alpha===1&&Number.isFinite(a.angle)));
+  assert.ok(new Set(actors.map(a=>a.x+','+a.y)).size===4);
+  await page.evaluate(()=>contentEngine.renderAt(17));assert.notDeepEqual(await page.locator('canvas').screenshot(),movingFrame);
+  await page.evaluate(()=>contentEngine.renderAt(4));assert.deepEqual(await page.locator('canvas').screenshot(),movingFrame);
  }finally{await browser.close();if(server)await new Promise(r=>server.close(r));}
 });

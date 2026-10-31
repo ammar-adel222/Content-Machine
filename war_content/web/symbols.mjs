@@ -1,4 +1,26 @@
 export const palette={team:0x6a8580,ink:0x26383b,paper:0xf1e9d5,accent:0xb88a47,muted:0x9eab94};
+export function designBounds(design) {
+  let left=Infinity,top=Infinity,right=-Infinity,bottom=-Infinity;
+  for(const p of design.primitives) {
+    const stroke=p.stroke!=='none'?p.stroke_width/2:0;
+    const xs=p.kind==='line'||p.kind==='polygon'?p.points.map(v=>v.x):[p.x-p.width/2,p.x+p.width/2];
+    const ys=p.kind==='line'||p.kind==='polygon'?p.points.map(v=>v.y):[p.y-p.height/2,p.y+p.height/2];
+    left=Math.min(left,...xs.map(x=>x-stroke));right=Math.max(right,...xs.map(x=>x+stroke));
+    top=Math.min(top,...ys.map(y=>y-stroke));bottom=Math.max(bottom,...ys.map(y=>y+stroke));
+  }
+  return {x:left,y:top,width:right-left,height:bottom-top};
+}
+
+// Fit the actual artwork, including its outline, to a consistent screen size.
+export function drawUnit(design,team=palette.team,pixels=48) {
+  // Build curves at a useful local size before scaling; tiny local geometry
+  // makes Pixi tessellate circles into visibly coarse polygons when enlarged.
+  const local=64,bounds=designBounds(design),c=new globalThis.PIXI.Container(),shape=drawDesign(design,team,local);
+  shape.position.set((-bounds.x-bounds.width/2)*local,(-bounds.y-bounds.height/2)*local);
+  c.addChild(shape);c.scale.set(pixels/(local*Math.max(bounds.width,bounds.height)));
+  return c;
+}
+
 export function drawDesign(design,team=palette.team,size=24) {
   const {Container,Graphics}=globalThis.PIXI,c=new Container();
   for(const p of design.primitives) {

@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "group0": {"movement": "tracks", "gain_db": -10},
+    "group1": {"movement": "heavy_steps", "gain_db": -6}
+  },
+  "spots": [],
+  "samples": {}
+}

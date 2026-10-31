@@ -7,7 +7,7 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from urllib.error import HTTPError
-from urllib.request import urlopen
+from urllib.request import Request,urlopen
 from unittest.mock import patch,MagicMock
 from war_content.play import PreviewHandler,main,ready,select_bundle
 
@@ -34,6 +34,7 @@ class PreviewServerTests(unittest.TestCase):
 
     def test_server_serves_current_player_and_only_selected_scene(self):
         (self.bundle/'secret.env').write_text('do not serve',encoding='utf-8')
+        (self.bundle/'soundtrack.wav').write_bytes(b'0123456789')
         with ThreadingHTTPServer(('127.0.0.1',0),partial(PreviewHandler,bundle=self.bundle)) as server:
             worker=threading.Thread(target=server.serve_forever,daemon=True);worker.start()
             try:
@@ -44,6 +45,13 @@ class PreviewServerTests(unittest.TestCase):
                 for path in ('/secret.env','/content.json','/../AGENTS.md','/%2e%2e/AGENTS.md'):
                     with self.assertRaises(HTTPError) as error:urlopen(base+path)
                     self.assertEqual(error.exception.code,404)
+                for header,expected in (('bytes=2-5',b'2345'),('bytes=7-',b'789'),('bytes=-3',b'789')):
+                    with urlopen(Request(base+'/soundtrack.wav',headers={'Range':header})) as response:
+                        self.assertEqual(response.status,206);self.assertEqual(response.read(),expected)
+                        self.assertEqual(response.headers['Content-Type'],'audio/wav')
+                for header in ('bytes=90-','bytes=5-2','bytes=0-1,3-4','broken'):
+                    with self.assertRaises(HTTPError) as error:urlopen(Request(base+'/soundtrack.wav',headers={'Range':header}))
+                    self.assertEqual(error.exception.code,416)
             finally:
                 server.shutdown();worker.join()
 

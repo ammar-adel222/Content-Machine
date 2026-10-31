@@ -10,14 +10,14 @@ from urllib.parse import urlsplit
 from .geodata import Battlefield
 
 WEB = Path(__file__).parent/"web"
-RUNTIME = {"index.html", "boot.js", "player.mjs", "motion.mjs", "symbols.mjs", "labels.mjs", "geography.mjs", "playback.mjs", "battlefield.mjs", "video.mjs"}
+RUNTIME = {"index.html", "boot.js", "player.mjs", "motion.mjs", "units.mjs", "symbols.mjs", "labels.mjs", "geography.mjs", "playback.mjs", "battlefield.mjs", "video.mjs"}
 
 
 def ready(directory):
     try:
         build=json.loads((directory/"content.json").read_text(encoding="utf-8"))
         scene=json.loads((directory/"scene.json").read_text(encoding="utf-8"))
-        if scene.get('purpose')=='battlefield_terrain_study':
+        if scene.get('purpose') in ('battlefield_terrain_study', 'unit_animation_study'):
             Battlefield.model_validate(scene.get('battlefield'))
             return build.get('status')=='preview' and build.get('publishing_ready') is False and bool(scene.get('scenes')) and (directory/'pixi.min.js').is_file()
         return (build.get("status")=="ready" and scene.get("schema_version")=="1.0" and
@@ -49,8 +49,9 @@ class PreviewHandler(SimpleHTTPRequestHandler):
         super().__init__(*args,directory=str(bundle),**kwargs)
 
     def send_head(self):
+        self._audio_range=None
         name=urlsplit(self.path).path.lstrip("/") or "index.html"
-        allowed=RUNTIME | {"scene.json", "pixi.min.js"}
+        allowed=RUNTIME | {"scene.json", "pixi.min.js", "soundtrack.wav"}
         if name not in allowed and not re.fullmatch(r'relief-[a-z0-9_-]+\.png',name):
             self.send_error(404)
             return None
@@ -59,13 +60,36 @@ class PreviewHandler(SimpleHTTPRequestHandler):
         if not target.is_relative_to(parent) or not target.is_file():
             self.send_error(404)
             return None
-        self.send_response(200)
-        self.send_header("Content-Type", "image/png" if target.suffix==".png" else "text/javascript" if target.suffix in (".js",".mjs") else
+        size=target.stat().st_size
+        if target.suffix=='.wav' and self.headers.get('Range'):
+            match=re.fullmatch(r'bytes=(\d*)-(\d*)',self.headers['Range'])
+            if match and any(match.groups()):
+                first,last=match.groups()
+                start=int(first) if first else max(0,size-int(last))
+                end=min(size-1,int(last)) if first and last else size-1
+            else:start,end=size,0
+            if start>end or start>=size:
+                self.send_response(416);self.send_header('Content-Range',f'bytes */{size}');self.end_headers();return None
+            self._audio_range=(start,end)
+        self.send_response(206 if self._audio_range else 200)
+        self.send_header("Content-Type", "audio/wav" if target.suffix==".wav" else "image/png" if target.suffix==".png" else "text/javascript" if target.suffix in (".js",".mjs") else
                          "application/json" if target.suffix==".json" else "text/html; charset=utf-8")
-        self.send_header("Content-Length",str(target.stat().st_size))
+        if target.suffix=='.wav':self.send_header('Accept-Ranges','bytes')
+        if self._audio_range:
+            start,end=self._audio_range;self.send_header('Content-Range',f'bytes {start}-{end}/{size}')
+        self.send_header("Content-Length",str(end-start+1 if self._audio_range else size))
         self.send_header("Cache-Control","no-store")
         self.end_headers()
         return target.open("rb")
+
+    def copyfile(self,source,outputfile):
+        if not self._audio_range:
+            return super().copyfile(source,outputfile)
+        start,end=self._audio_range;source.seek(start);remaining=end-start+1
+        while remaining:
+            block=source.read(min(65536,remaining))
+            if not block:break
+            outputfile.write(block);remaining-=len(block)
 
     def log_message(self,*args):
         pass

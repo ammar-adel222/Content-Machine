@@ -1,4 +1,4 @@
-import {drawDesign} from './symbols.mjs';
+import {drawUnit} from './symbols.mjs';
 import {placeLabel} from './labels.mjs';
 import {clamp,smooth} from './motion.mjs';
 import {coverCamera,filmOverlay} from './video.mjs';
@@ -74,7 +74,7 @@ export async function createGeography(data,app) {
    if(!force||!place)continue;
    const color=colors[sides.indexOf(force.side)%colors.length],p=projectGeo(place.lon,place.lat,layer,frame);
    const peers=data.geography.placements.filter(b=>b.place_id===binding.place_id),order=peers.indexOf(binding);
-   const holder=new Container(),shape=drawDesign(data.assets[data.bindings.unit[force.id]],color,17);
+   const holder=new Container(),shape=drawUnit(data.assets[data.bindings.unit[force.id]],color,48);
    shape.position.set(p.x-60+order*55,p.y+53);
    holder.addChild(new Graphics().moveTo(p.x,p.y).lineTo(shape.x,shape.y).stroke({color,width:1,alpha:.45}),shape);group.addChild(holder);
    const intro=(data.timeline??[]).find(a=>a.kind==='introduce'&&a.unit_id===force.id);
