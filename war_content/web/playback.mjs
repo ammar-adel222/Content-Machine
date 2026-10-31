@@ -9,7 +9,7 @@ export function connectPlayback(data,app,render) {
   audio=new Audio(data.soundtrack.file);audio.preload='auto';
   audio.addEventListener('error',()=>{document.getElementById('error').textContent='Soundtrack unavailable. Check the audio file in this bundle.';});
   if(mute){mute.hidden=false;mute.setAttribute('aria-label','Mute sound');mute.onclick=()=>{audio.muted=!audio.muted;mute.textContent=audio.muted?'Unmute':'Mute';mute.setAttribute('aria-label',audio.muted?'Unmute sound':'Mute sound');};}
-  const note=document.querySelector('small');if(note)note.textContent=note.textContent.replace('silent preview',data.soundtrack.has_narration?'narration + sound effects':'sound effects');
+  const note=document.querySelector('small');if(note){const description=(data.soundtrack.has_narration?'narration + sound effects':'sound effects')+(data.soundtrack.has_music?' + quiet music':'');note.textContent=note.textContent.replace('silent preview',description);}
  }
  function drawAt(seconds) {
   time=clamp(seconds,0,data.duration);render(time);seek.value=time;

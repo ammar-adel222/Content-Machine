@@ -64,6 +64,10 @@ def compile_bundle(bundle, config, output, *, narration=None, sample_root=None, 
             'The source content publishing/review status is preserved.']
     (target/'sound-metrics.json').write_text(json.dumps(dict(mix=stats,effects=dry_stats),indent=2),encoding='utf-8')
     (target/'sound-report.md').write_text('\n'.join(lines)+'\n',encoding='utf-8')
+    # Preserve independently editable music when only the effects are revised.
+    if (source/'audio-project.json').is_file():
+        from .music import inherit_music
+        inherit_music(source,target)
     if video:
         mux_video(video,target/'soundtrack.wav',target/'preview-with-sound.mp4',plan.duration)
     return target,True

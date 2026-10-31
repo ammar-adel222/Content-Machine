@@ -1,0 +1,23 @@
+{
+  "source": {
+    "kind": "ambient",
+    "title": "Quiet atlas ambient bed",
+    "attribution": "Original demonstration bed generated locally; replaceable with a local track.",
+    "loop": true,
+    "crossfade_sec": 1
+  },
+  "mix": {
+    "enabled": true,
+    "music_gain_db": -22,
+    "narration_gain_db": 0,
+    "effects_gain_db": 0,
+    "start_sec": 0,
+    "fade_in_sec": 2,
+    "fade_out_sec": 3,
+    "voice_duck_db": -10,
+    "effects_duck_db": -6,
+    "voice_margin_db": 22,
+    "attack_sec": 0.04,
+    "release_sec": 0.6
+  }
+}

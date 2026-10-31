@@ -1,0 +1,7 @@
+{
+  "model": "gemini-3.8-flash-tts",
+  "voice": "Charon",
+  "notes": "Use a natural documentary delivery with varied sentence stress. Let important ideas land without theatrical emphasis.",
+  "phrase_notes": {},
+  "max_requests": 20
+}

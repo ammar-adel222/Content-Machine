@@ -2,13 +2,25 @@
 
 The agreed architecture keeps each component runnable through saved, versioned artifacts:
 
+The detailed [LangGraph workflow proposal](LANGGRAPH_WORKFLOW_PLAN.md) describes
+parallel dependencies, targeted revisions, cache boundaries, review routing and
+implementation gaps. The [first coordinator foundation](WORKFLOW_FOUNDATION_REPORT.md)
+implements saved projects, edit routing, checkpointing and media-only revisions.
+The [authoring integration](WORKFLOW_AUTHORING_REPORT.md) connects research, writing,
+script review, direction and plan review, with bounded owner-directed repair loops.
+Its high-level structure follows the user's sketch: research -> writing -> review
+-> director -> content, with edit entry points at each stage and separate content
+children for map, units, movement and audio. Review is reused at later checkpoints.
+
 ```mermaid
 flowchart LR
     R[Research dossier] --> W[Writer: narration and delivery]
     W --> D[Director: battlefield storyboard]
     D --> V[Content engine: unit and terrain design]
     V --> P[PixiJS playback and silent export]
-    P --> A[Planned: TTS and final composition]
+    P --> A[Audio: effects, quiet music and imported narration]
+    W --> T[Gemini TTS and measured phrase timing]
+    T --> A
     Q[Quality reviewer] -. findings .-> W
     Q -. findings .-> D
 ```
@@ -17,10 +29,11 @@ flowchart LR
 and managing cross-agent review/revision loops and human approval before publishing.
 It is Python orchestration, not a replacement for the agents' Python implementation.
 
-The LangGraph coordinator is planned and is **not implemented in this change**. Current
-CLIs remain independently usable; their small bounded local retry loops are retained.
-When wiring the graph, move cross-agent routing and overall budgets/checkpoints into the
-coordinator rather than embedding the full workflow inside one agent.
+The LangGraph foundation and text/plan authoring adapters are implemented.
+Current CLIs remain independently usable; their small bounded local retry loops are retained.
+The coordinator owns cross-agent repair routing, overall budget reservations and
+checkpoints. Each failed text/plan review allows one repair cycle by its owner;
+unresolved failures stop for edits.
 
 The graph should carry artifact paths/fingerprints, statuses, review findings and remaining
 budgets. It should route unsupported facts back to research, narration issues to writing,
@@ -29,8 +42,9 @@ agent's output to satisfy a check. Only changed artifacts and their affected dep
 should be regenerated. Publishing still requires the user's review.
 
 Research, writing, directing, plan/text review, dynamic unit/terrain design, rendered-asset
-review, PixiJS playback and silent MP4 export are implemented. Gemini TTS production,
-final rendered-video review, publishing integration and the coordinator remain later components.
+review, PixiJS playback and silent MP4 export are implemented. [Gemini TTS and measured
+timing](NARRATION_TIMING_REPORT.md) are now connected. Full rendered-video review,
+publishing integration and visual production graph adapters remain later components.
 
 Current defaults are Gemini 3.8 Flash with Gemini 3.5 Flash-Lite fallback for research
 and writing, and Qwen 3.8 27B through Groq for visuals. Visual appearance is independent
@@ -62,3 +76,8 @@ The independent [sound-effects stage](SOUND_EFFECTS_REPORT.md) consumes the save
 timeline and explicit unit sound profiles. It produces editable cue data, effects
 and narration stems, a ducked mix, and a sound-enabled bundle. Audio drives preview
 playback timing; the exporter includes its verified soundtrack. Music is separate.
+
+The [music/mix stage](MUSIC_REPORT.md) adds a quiet independent music source, cached
+preparation and an editable audio-project manifest. It retains original/dry stems,
+source hashes, mix controls and parent versions; effects revisions preserve music.
+Audio-only edits can stream-copy a matching video instead of rerendering frames.

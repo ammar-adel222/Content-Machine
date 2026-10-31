@@ -100,7 +100,7 @@ export async function createBattlefield(data,app) {
  }
  const units=study?createUnits(data,world,p=>terrainPoint(field,p.x,p.y),()=>world.scale.x):null;
  const hud=filmOverlay(data,app,'Mapzen / USGS / Copernicus · GeoNames · © OSM contributors · openstreetmap.org/copyright',
-  study?'Animation study · illustrative deployments · '+(data.soundtrack?'sound effects':'silent'):'Terrain study · modern stream course · '+field.exaggeration+'× height emphasis');
+  study?'Animation study · illustrative deployments · '+(data.soundtrack?(data.soundtrack.has_music?'effects + quiet music':'sound effects'):'silent'):'Terrain study · modern stream course · '+field.exaggeration+'× height emphasis');
  const bounds=terrainBounds(field);
  const center=kind=>{
   const points=field.features.filter(f=>f.kind===kind).flatMap(f=>f.points).map(([lon,lat])=>projected(lon,lat));

@@ -219,7 +219,44 @@ and ducks effects beneath supplied narration. Weapon sounds require explicit cue
 
 Outputs include editable sound configuration, a cue plan, WAV stems and a Markdown
 report. Sound-enabled bundles play audio with Play/Pause, seek and mute controls;
-normal MP4 export includes the soundtrack automatically. Music is separate.
+normal MP4 export includes the soundtrack automatically. Music uses the separate stage below.
+
+## Quiet music and editable mixing
+
+The [music stage](docs/MUSIC_REPORT.md) keeps background music very quiet and ducks
+it beneath narration and prominent effects. Use a local track or the original ambient
+demo; track choice, volume, fades and ducking remain in `music-config.json`.
+
+```powershell
+& $researchPython -m war_content.music output/content/SOUND-BUNDLE --config examples/music/quiet.json --video output/units/unit-animation.mp4
+& $researchPython -m war_content.play output/content/MUSIC-BUNDLE
+```
+
+Edit the saved config and rerun the stage to create a new version. Prepared music is
+cached; narration/effects stems and visuals remain separate. Effects rebuilds retain
+the chosen music. No visual rerender or TTS call is needed for an audio-only revision.
+
+## Saved projects and targeted edits
+
+The [LangGraph foundation](docs/WORKFLOW_FOUNDATION_REPORT.md) saves project revisions,
+routes edits to affected stages, reuses complete artifacts and pauses for approval of
+the exact final video. Its first live adapters support music/audio-only revisions.
+Research, writing, script review, direction and plan review are now connected through
+[authoring adapters](docs/WORKFLOW_AUTHORING_REPORT.md), with bounded review/repair
+loops. [Gemini narration and measured timing](docs/NARRATION_TIMING_REPORT.md) are
+also connected. Visual production integration remains pending. Independent agent
+commands continue to work.
+
+```powershell
+python -m venv .venv
+& .\.venv\Scripts\python.exe -m pip install -e ".[geography,workflow]"
+& .\.venv\Scripts\python.exe -m war_workflow init --topic 'Battle of Austerlitz'
+& .\.venv\Scripts\python.exe -m war_workflow status PROJECT-PATH
+& .\.venv\Scripts\python.exe -m war_workflow run PROJECT-PATH --env-file 'E:\AI matirial\content machine\war-tactics-agent\.env'
+```
+
+Use the workflow-enabled `.venv` when running the full graph test suite. The report
+includes the import/edit/run/approve workflow and the tested music-only example.
 
 ## Tests
 

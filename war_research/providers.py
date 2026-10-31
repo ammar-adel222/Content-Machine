@@ -67,12 +67,12 @@ def model_routes(provider="gemini", model=None, fallback=None):
 
 def request_json(url: str, payload: dict | None = None, headers: dict | None = None,
                  *, sleep: Callable = time.sleep, opener: Callable = urlopen, timeout: int = 60,
-                 max_retry_wait: float = 5) -> dict:
+                 max_retry_wait: float = 5, retries: int = 1) -> dict:
     """One retry for temporary errors; don't expose response bodies or secrets."""
     request = Request(url, data=json.dumps(payload).encode() if payload is not None else None,
                       headers={"User-Agent": "WarContentResearch/0.1", "Content-Type": "application/json",
                                **(headers or {})})
-    for attempt in range(2):
+    for attempt in range(retries+1):
         try:
             with opener(request, timeout=timeout) as response:
                 data = json.load(response)
@@ -88,12 +88,12 @@ def request_json(url: str, payload: dict | None = None, headers: dict | None = N
                 delay = 1
             if delay < 0:
                 delay = 1
-            if transient and not attempt and delay <= min(60,max_retry_wait):
+            if transient and attempt < retries and delay <= min(60,max_retry_wait):
                 sleep(delay)
                 continue
             raise ProviderError(f"Provider HTTP {exc.code}.") from None
         except (URLError, TimeoutError, OSError):
-            if not attempt:
+            if attempt < retries:
                 sleep(1)
                 continue
             raise ProviderError("Provider network request failed.") from None
