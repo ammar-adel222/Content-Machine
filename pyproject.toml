@@ -12,6 +12,7 @@ dependencies = ["pydantic>=2.8,<3"]
 [project.optional-dependencies]
 geography = ["Pillow>=10,<13"]
 workflow = ["langgraph==1.2.19", "langgraph-checkpoint-sqlite==3.1.3"]
+studio = ["fastapi>=0.115,<1", "uvicorn>=0.30,<1", "httpx>=0.27,<1"]
 
 [project.scripts]
 war-research = "war_research.__main__:main"
@@ -25,9 +26,11 @@ war-sound = "war_content.sound_effects:main"
 war-music = "war_content.music:main"
 war-project = "war_workflow.__main__:main"
 war-narrate = "war_narration.__main__:main"
+war-studio = "war_studio.__main__:main"
 
 [tool.setuptools.packages.find]
-include = ["war_research*", "war_writer*", "war_director*", "war_reviewer*", "war_content*", "war_workflow*", "war_narration*"]
+include = ["war_research*", "war_writer*", "war_director*", "war_reviewer*", "war_content*", "war_workflow*", "war_narration*", "war_studio*"]
 
 [tool.setuptools.package-data]
 war_content = ["web/*.html", "web/*.mjs", "web/*.js"]
+war_studio = ["web/*.html", "web/*.mjs", "web/*.css"]

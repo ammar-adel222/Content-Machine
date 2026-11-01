@@ -292,3 +292,21 @@ sounds, including targeted edit reuse and the verified Austerlitz example.
 The [camera, captions and trails report](docs/CAMERA_CAPTIONS_TRAILS_REPORT.md) explains
 continuous sector push-ins, gold spoken-word highlighting, dashed traveled routes,
 editable presentation controls and narration-bound timestamp imports.
+
+## Content Machine Studio
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -e ".[studio,workflow,geography]"
+.\.venv\Scripts\python.exe -m war_studio --port 8765 --env-file "E:\AI matirial\content machine\war-tactics-agent\.env"
+```
+
+Open `http://127.0.0.1:8765`. The [integration report](docs/STUDIO_INTEGRATION_REPORT.md)
+describes real saved projects, queued LangGraph jobs, targeted edits, per-platform
+publishing review and live analytics snapshots. TikTok currently remains in sandbox
+with analytics permission unavailable. Publishing requires explicit confirmation.
+Use `--demo` for the isolated [original UI demonstration](docs/STUDIO_UI_REPORT.md).
+
+The [publishing corrections](docs/PUBLISHING_CORRECTIONS_REPORT.md) restore edition-one
+Instagram URL staging and TikTok mobile-inbox review. The user-requested local `.env`
+copy is ignored by Git; launch with `--env-file .env` to use it. Automatic AI-label
+flags are no longer added by the uploader.

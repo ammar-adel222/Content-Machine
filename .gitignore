@@ -6,3 +6,4 @@ __pycache__/
 htmlcov/
 output/
 node_modules/
+studio.sqlite*
