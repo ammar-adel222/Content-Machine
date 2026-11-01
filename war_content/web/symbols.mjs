@@ -1,3 +1,14 @@
+// Stable faction identity is independent of scene order and the selected action.
+export function factionRoster(forces=[]) {
+ const sides=[...new Set(forces.map(f=>f.side))].sort();
+ return sides.map(side=>{
+  const name=side.toLowerCase();
+  const french=/^(france|french)$/.test(name),allied=/^(allied|allies|coalition)$/.test(name);
+  let hash=0;for(const c of name)hash=(hash*31+c.charCodeAt(0))>>>0;
+  const color=french?0x477f92:allied?0xb2634e:[0x8b7eae,0x5b8866,0xad8444,0x667f9c][hash%4];
+  return {id:side,label:french?'France':allied?'Allies':side,color};
+ });
+}
 export const palette={team:0x6a8580,ink:0x26383b,paper:0xf1e9d5,accent:0xb88a47,muted:0x9eab94};
 export function designBounds(design) {
   let left=Infinity,top=Infinity,right=-Infinity,bottom=-Infinity;

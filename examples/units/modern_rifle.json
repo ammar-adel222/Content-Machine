@@ -1,0 +1,100 @@
+{
+  "brief": {
+    "category": "unit",
+    "concept": "modern_gun_icon_v1",
+    "description": "Upright generic gun silhouette as an optional modern-era infantry icon. Symbolic category convention, not a specific issued rifle or historical equipment assertion."
+  },
+  "presentation": "upright",
+  "design": {
+    "label": "Modern infantry gun",
+    "explanation": "Upright generic firearm glyph for modern-era infantry. This is an icon convention, not an assertion that a particular rifle model was used.",
+    "primitives": [
+      {
+        "kind": "rect",
+        "x": 0,
+        "y": -0.55,
+        "width": 0.13,
+        "height": 0.75,
+        "fill": "ink",
+        "stroke": "ink",
+        "stroke_width": 0.05
+      },
+      {
+        "kind": "rect",
+        "x": 0,
+        "y": -0.04,
+        "width": 0.3,
+        "height": 0.43,
+        "fill": "team",
+        "stroke": "ink",
+        "stroke_width": 0.05
+      },
+      {
+        "kind": "polygon",
+        "points": [
+          {
+            "x": -0.15,
+            "y": 0.11
+          },
+          {
+            "x": -0.13,
+            "y": 0.35
+          },
+          {
+            "x": -0.32,
+            "y": 0.74
+          },
+          {
+            "x": -0.1,
+            "y": 0.86
+          },
+          {
+            "x": 0.14,
+            "y": 0.37
+          },
+          {
+            "x": 0.15,
+            "y": 0.11
+          }
+        ],
+        "fill": "team",
+        "stroke": "ink",
+        "stroke_width": 0.055
+      },
+      {
+        "kind": "polygon",
+        "points": [
+          {
+            "x": 0.12,
+            "y": -0.13
+          },
+          {
+            "x": 0.38,
+            "y": -0.03
+          },
+          {
+            "x": 0.34,
+            "y": 0.31
+          },
+          {
+            "x": 0.17,
+            "y": 0.27
+          }
+        ],
+        "fill": "paper",
+        "stroke": "ink",
+        "stroke_width": 0.055
+      },
+      {
+        "kind": "rect",
+        "x": -0.21,
+        "y": -0.01,
+        "width": 0.13,
+        "height": 0.33,
+        "fill": "team",
+        "stroke": "ink",
+        "stroke_width": 0.05
+      }
+    ]
+  }
+}

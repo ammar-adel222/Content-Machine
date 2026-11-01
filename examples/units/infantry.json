@@ -1,0 +1,96 @@
+{
+  "brief": {
+    "category": "unit",
+    "concept": "older_era_sword_icon_v1",
+    "description": "Upright sword-shaped icon denoting older-era infantry. A symbolic era convention only, not a claim that every soldier carried a sword or a uniform reconstruction."
+  },
+  "presentation": "upright",
+  "design": {
+    "label": "Older-era infantry sword",
+    "explanation": "Upright team-tinted sword-shaped visual convention for older-era infantry, not a reconstruction of its carried weapons. A pale blade highlight and strong outline keep its shape readable.",
+    "primitives": [
+      {
+        "kind": "polygon",
+        "points": [
+          {
+            "x": -0.15,
+            "y": 0.28
+          },
+          {
+            "x": -0.15,
+            "y": -0.56
+          },
+          {
+            "x": 0,
+            "y": -0.93
+          },
+          {
+            "x": 0.15,
+            "y": -0.56
+          },
+          {
+            "x": 0.15,
+            "y": 0.28
+          }
+        ],
+        "fill": "team",
+        "stroke": "ink",
+        "stroke_width": 0.055
+      },
+      {
+        "kind": "polygon",
+        "points": [
+          {
+            "x": 0,
+            "y": -0.77
+          },
+          {
+            "x": 0,
+            "y": 0.23
+          },
+          {
+            "x": 0.1,
+            "y": 0.23
+          },
+          {
+            "x": 0.1,
+            "y": -0.54
+          }
+        ],
+        "fill": "paper",
+        "stroke": "ink",
+        "stroke_width": 0.01
+      },
+      {
+        "kind": "rect",
+        "x": 0,
+        "y": 0.31,
+        "width": 0.78,
+        "height": 0.14,
+        "fill": "team",
+        "stroke": "ink",
+        "stroke_width": 0.05
+      },
+      {
+        "kind": "rect",
+        "x": 0,
+        "y": 0.59,
+        "width": 0.17,
+        "height": 0.46,
+        "fill": "team",
+        "stroke": "ink",
+        "stroke_width": 0.05
+      },
+      {
+        "kind": "ellipse",
+        "x": 0,
+        "y": 0.87,
+        "width": 0.29,
+        "height": 0.19,
+        "fill": "team",
+        "stroke": "ink",
+        "stroke_width": 0.05
+      }
+    ]
+  }
+}

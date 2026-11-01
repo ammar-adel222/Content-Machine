@@ -18,7 +18,7 @@ flowchart LR
     W --> D[Director: battlefield storyboard]
     D --> V[Content engine: unit and terrain design]
     V --> P[PixiJS playback and silent export]
-    P --> A[Audio: effects, quiet music and imported narration]
+    P --> A[Audio: effects, quiet music and current narration]
     W --> T[Gemini TTS and measured phrase timing]
     T --> A
     Q[Quality reviewer] -. findings .-> W
@@ -45,8 +45,9 @@ Research, writing, directing, plan/text review, dynamic unit/terrain design, ren
 review, PixiJS playback and silent MP4 export are implemented. [Gemini TTS and measured
 timing](NARRATION_TIMING_REPORT.md) are now connected. [Visual production adapters](VISUAL_PRODUCTION_WORKFLOW_REPORT.md)
 connect independent terrain/unit design, sampled frame review and silent picture export.
-New-project effects/music preparation, full rendered-video review and publishing
-integration remain later components.
+[Effects, music preparation and current-stem composition](AUDIO_WORKFLOW_REPORT.md)
+connect all 17 stage slots through final human review. Full rendered-video semantic
+review, automated spatial authoring and publishing integration remain later components.
 
 Current defaults are Gemini 3.8 Flash with Gemini 3.5 Flash-Lite fallback for research
 and writing, and Qwen 3.8 27B through Groq for visuals. Visual appearance is independent

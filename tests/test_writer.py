@@ -49,6 +49,17 @@ class WriterCheckTests(unittest.TestCase):
         self.assertGreater(count, 200)
         self.assertTrue(89.25 <= seconds <= 120.75)
 
+    def test_weekday_weather_setup_cannot_evade_the_date_opening_check(self):
+        value=draft();value.scenes[0].phrases[0].text='On a cold Monday morning, December second, the defenders waited.'
+        self.assertTrue(any('before introducing dates' in issue for issue in check_draft(value,self.dossier,105)))
+
+    def test_long_hook_and_padded_pauses_are_rejected(self):
+        value=draft();value.scenes[0].phrases[0].text=' '.join(['word']*20)+'.'
+        value.scenes[1].phrases[0].pause_after_ms=1500
+        issues=check_draft(value,self.dossier,105)
+        self.assertTrue(any('16 words' in issue for issue in issues))
+        self.assertTrue(any('500ms' in issue for issue in issues))
+
     def test_pace_and_pause_affect_estimated_time(self):
         normal = draft()
         slow = normal.model_copy(deep=True)
@@ -65,6 +76,20 @@ class WriterCheckTests(unittest.TestCase):
                          {"1982", "8000", "127"})
         self.assertEqual(numbers("twenty-six men; two hundred and fifty-five; one side"), {"26", "255"})
         self.assertEqual(numbers("one million and six hundred thousand; nineteen hundred; and"), {"1600000", "1900"})
+
+    def test_spoken_clocks_match_cited_times_without_becoming_years(self):
+        self.assertEqual(numbers('four thirty p m'),numbers('4:30 p.m.'))
+        self.assertEqual(numbers('six a m'),numbers('06:00'))
+        self.assertEqual(numbers('twelve a.m.; twelve p.m.; nine oh five am'),{'clock:00:00','clock:12:00','clock:09:05'})
+        self.assertEqual(numbers('nine thirty-five P.M.'),{'clock:21:35'})
+        self.assertEqual(numbers('nineteen eighty-two'),{'1982'})
+
+    def test_clock_mismatch_cannot_be_accepted_as_approximate_troop_count(self):
+        self.dossier.findings.claims[4].statement+=' The withdrawal began at 4:30 p.m. with 430 soldiers.'
+        d=draft();d.scenes[0].phrases[0].text+=' Around four thirty p m they withdrew.'
+        self.assertFalse(any('numeric' in i for i in check_draft(d,self.dossier,105)))
+        d.scenes[0].phrases[0].text=d.scenes[0].phrases[0].text.replace('four thirty','four forty')
+        self.assertTrue(any('numeric' in i for i in check_draft(d,self.dossier,105)))
 
     def test_spelled_unsupported_distance_is_flagged(self):
         d = draft()

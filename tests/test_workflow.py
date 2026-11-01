@@ -233,9 +233,9 @@ class MediaAdapterTests(unittest.TestCase):
             target=ctx.output_dir/'final.mp4';target.write_bytes(b'new container');return Output(data={'duration':4},files={'video':str(target)})
         registry=media.adapters();registry['mux']=Adapter(fake_mux,'fake-mux')
         store.edit(Edit(parent_revision=store.load().id,kind='music_mix',patch={'music_gain_db':-28}))
-        with patch('war_content.music.compile_bundle',return_value=self.bundle) as mix,patch('war_workflow.media.probe',return_value=self.probe):
+        with patch('war_content.music.compile_bundle',side_effect=AssertionError('Mix must use current stems, not rebuild an old bundle.')) as mix,patch('war_workflow.media.probe',return_value=self.probe):
             result=Runner(store,registry).run()
-        self.assertEqual(result.status,'awaiting_review');self.assertEqual(mix.call_count,1)
+        self.assertEqual(result.status,'awaiting_review');self.assertEqual(mix.call_count,0)
         self.assertEqual(set(result.executed),{'mix','audio_review','mux','final_review'})
         self.assertTrue(all(v['used']==0 for v in store.budgets(result.id).values()))
         self.assertNotIn('research',result.artifacts)

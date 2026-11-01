@@ -6,6 +6,7 @@ from war_research.models import Model
 class NarrationRequest(Model):
     model: Literal['gemini-3.8-flash-tts','gemini-3.8-flash-lite-tts']='gemini-3.8-flash-tts'
     voice: str = Field(default='Charon',pattern=r'^[A-Za-z]{2,40}$')
+    trim_silence: bool = False
     notes: str = Field(default='',max_length=3000)
     phrase_notes: dict[str,Annotated[str,Field(max_length=3000)]] = Field(default_factory=dict)
     max_requests: int = Field(default=20,ge=1,le=60)

@@ -44,6 +44,7 @@ def save(build, plan, script, root, *, audio=None, pixi=None):
                    "timing_basis":plan.timing_basis,"layout_note":plan.blueprint.layout_note,
                    "blueprint":plan.blueprint.model_dump(),"scenes":scenes,"captions":captions,
                    "timeline":plan.timeline,"bindings":bindings,
+                   "unit_presentations":{b.object_id:b.presentation for b in build.manifest.bindings if b.brief.category=="unit"},
                    "assets":{k:v.design.model_dump() for k,v in build.assets.items()}}
         (directory/"scene.json").write_text(json.dumps(payload,ensure_ascii=False,indent=2),encoding="utf-8")
         for name in ("index.html","boot.js","player.mjs","motion.mjs","units.mjs","symbols.mjs","labels.mjs","geography.mjs","playback.mjs","battlefield.mjs","video.mjs"):

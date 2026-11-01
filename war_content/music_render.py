@@ -21,6 +21,17 @@ def ambient_bed(rate=RATE):
     return output
 
 
+def pulse_bed(rate=RATE):
+    """Original restrained 96 BPM low percussion over the existing harmonic bed."""
+    output=ambient_bed(rate)
+    for frame in range(len(output)//2):
+        t=frame/rate;beat=t%(60/96);offbeat=(t+30/96)%(60/96)
+        pulse=.14*math.sin(2*math.pi*(70*beat+12*(1-math.exp(-20*beat))))*math.exp(-14*beat)
+        tick=.018*math.sin(2*math.pi*620*offbeat)*math.exp(-90*offbeat)
+        for channel in (0,1):output[2*frame+channel]=output[2*frame+channel]*.55+pulse+tick
+    return output
+
+
 def fit_track(samples, duration, loop=True, crossfade_sec=1, rate=RATE):
     if len(samples)%2 or len(samples)//2<round(.25*rate):raise ValueError('Music needs at least 0.25 seconds of stereo audio.')
     frames=round(duration*rate)

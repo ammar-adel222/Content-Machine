@@ -299,7 +299,7 @@ class DirectorAgent:
             "an earlier garrison. Withdrawal arrows require explicit retreat/evacuation evidence; "
             "surrender should be highlighted or faded, not portrayed as an undocumented retreat. "
             "action's cause and consequence. Use move/withdraw only with >=2 waypoints; engage requires "
-            "an opposing target. highlight/fade have empty routes. Water/mountains/walls are blocked "
+            "an opposing target. When sourced fighting occurs, author an explicit engage cue at actual contact so its visual and sound cue can synchronize; highlight/fade alone do not communicate a clash. highlight/fade have empty routes. Water/mountains/walls are blocked "
             "polygons; crossings need explicit source evidence. Ground forces cannot traverse them; "
             "Do not draw a sea polygon underneath land units: polygon holes/layer overrides are not "
             "supported. Use separate non-overlapping water/land areas. "

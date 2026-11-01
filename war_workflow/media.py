@@ -1,10 +1,11 @@
-"""First live adapters: edit an existing music project's audio without authoring again."""
+"""Media import, technical review and final mux; stem mixing lives in audio.py."""
 from array import array
 import json
 import math
 from pathlib import Path
 import subprocess
 import wave
+from uuid import uuid4
 from .graph import Adapter
 from .models import Limits, Output
 from .planner import fingerprint
@@ -42,10 +43,13 @@ def import_media(root,bundle,video,*,picture_approved=False):
     revision=store.load();revision.params['mix']=config.mix.model_dump()
     base={'bundle':str(bundle),'basis':'Imported media; upstream authoring agents were not run.',
           'publishing_ready':False,'duration':duration}
+    source_metadata=json.loads((bundle/'audio-project.json').read_text(encoding='utf-8')).get('source',{}) if (bundle/'audio-project.json').is_file() else {}
+    if (bundle/'audio-project.json').is_file():music_files['metadata']=str(bundle/'audio-project.json')
     outputs={
         'timing':Output(data={'duration':duration,'basis':'Imported clip clock only.'},views={'duration':duration}),
         'effects':Output(data=base,files={'wave':str(bundle/'sound-effects.wav')},views={'waveform':file_hash(bundle/'sound-effects.wav')}),
-        'music_source':Output(data=base,files=music_files,views={'waveform':file_hash(bundle/'music-source.wav')}),
+        'music_source':Output(data=base|{'source_request':config.source.model_dump(mode='json'),'source_root':str(bundle),'prepared':source_metadata},
+                              files=music_files,views={'waveform':file_hash(bundle/'music-source.wav')}),
         'mix':Output(data=base,files={'wave':str(bundle/'soundtrack.wav'),'metrics':str(bundle/'music-metrics.json')}),
         'picture':Output(data=base,files={'video':str(video)}),
         'visual_review':Output(data={'basis':'Explicit approval of imported picture only.','video_sha256':file_hash(video)},
@@ -61,23 +65,6 @@ def import_media(root,bundle,video,*,picture_approved=False):
     return store
 
 
-def mix(ctx):
-    from war_content.music import compile_bundle
-    from war_content.music_models import MusicConfig,MixSettings
-    source=Path((ctx.previous or ctx.inputs['effects']).output.data['bundle'])
-    config=MusicConfig.model_validate_json((source/'music-config.json').read_text(encoding='utf-8'))
-    try:config.mix=MixSettings.model_validate(config.mix.model_dump()|ctx.params)
-    except ValueError:raise WorkflowError('Invalid audio mix parameters; use the fields in music-config.json.') from None
-    target=compile_bundle(source,ctx.output_dir,config=config,config_root=source,cache=ctx.store.root/'music-cache')
-    duration=json.loads((target/'scene.json').read_text(encoding='utf-8'))['duration']
-    files={'wave':str(target/'soundtrack.wav'),'metrics':str(target/'music-metrics.json'),
-           'config':str(target/'music-config.json'),'music_source':str(target/'music-source.wav'),
-           'effects':str(target/'sound-effects.wav')}
-    if (target/'narration.wav').is_file():files['narration']=str(target/'narration.wav')
-    if config.source.kind=='file':files['original']=str(target/('music-original'+Path(config.source.path).suffix.lower()))
-    return Output(data={'bundle':str(target),'duration':duration,'publishing_ready':False},files=files)
-
-
 def audio_review(ctx):
     current=ctx.inputs['mix']
     with wave.open(current.output.files['wave'],'rb') as audio:
@@ -91,9 +78,10 @@ def audio_review(ctx):
 
 def mux(ctx):
     from war_content.sound_effects import mux_video
-    target=ctx.output_dir/'final.mp4';mix=ctx.inputs['mix'];picture=ctx.inputs['picture']
+    target=ctx.output_dir/('mux-'+uuid4().hex+'.mp4');mix=ctx.inputs['mix'];picture=ctx.inputs['picture']
     mux_video(picture.output.files['video'],mix.output.files['wave'],target,mix.output.data['duration'])
-    return Output(data={'duration':mix.output.data['duration'],'picture':picture.id,'mix':mix.id,'publishing_ready':False},files={'video':str(target)})
+    final=ctx.output_dir/('final-'+file_hash(target)+'.mp4');target.replace(final)
+    return Output(data={'duration':mix.output.data['duration'],'picture':picture.id,'mix':mix.id,'publishing_ready':False},files={'video':str(final)})
 
 
 def final_review(ctx):
@@ -106,5 +94,6 @@ def final_review(ctx):
 
 
 def adapters():
-    return {'mix':Adapter(mix,'music-mix-v1'),'audio_review':Adapter(audio_review,'audio-check-v1'),
-            'mux':Adapter(mux,'mux-v1'),'final_review':Adapter(final_review,'media-check-v1')}
+    from .audio import adapters as audio_adapters
+    return {'mix':audio_adapters()['mix'],'audio_review':Adapter(audio_review,'audio-check-v1'),
+            'mux':Adapter(mux,'mux-v2'),'final_review':Adapter(final_review,'media-check-v1')}

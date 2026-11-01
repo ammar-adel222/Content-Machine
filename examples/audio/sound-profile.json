@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "FORCE-ID": {
+      "movement": "footsteps",
+      "gain_db": -18
+    }
+  }
+}

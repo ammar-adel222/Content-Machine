@@ -51,6 +51,7 @@ class Brief(Model):
 
 
 class Binding(Model):
+    presentation: Literal['heading','upright'] = 'heading'
     object_id: str
     brief: Brief
     claim_id: str

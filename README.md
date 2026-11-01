@@ -245,8 +245,9 @@ Research, writing, script review, direction and plan review are now connected th
 [authoring adapters](docs/WORKFLOW_AUTHORING_REPORT.md), with bounded review/repair
 loops. [Gemini narration and measured timing](docs/NARRATION_TIMING_REPORT.md) are
 also connected. [Terrain/unit production, rendered frame review and silent picture export](docs/VISUAL_PRODUCTION_WORKFLOW_REPORT.md)
-are now connected; fresh projects require an explicit terrain mode. Effects/music
-preparation and final composition with generated narration are next. Independent agent
+are now connected; fresh projects require an explicit terrain mode. [Effects, quiet music
+and final stem mixing](docs/AUDIO_WORKFLOW_REPORT.md) connect the remaining stages through
+the exact-version human review gate. Independent agent
 commands continue to work.
 
 ```powershell
@@ -272,3 +273,22 @@ node --test renderer/tests/*.test.mjs
 
 The second command also writes standard-library line-coverage reports under
 `output/coverage/`. Tests use synthetic evidence and injected fake services.
+
+
+The [Austerlitz full-pipeline test report](docs/AUSTERLITZ_FULL_PIPELINE_TEST_REPORT.md)
+records the live run, required manual corrections, fixes, verification and remaining
+limits. It distinguishes a supervised completed video from unattended production.
+
+
+The [short-form correction report](docs/SHORT_FORM_CORRECTIONS_REPORT.md) records the
+faster opening, fixed captions, persistent faction legend, era equipment icons,
+stronger sound mix and targeted-edit regression fixes.
+
+
+The [formation and clash report](docs/FORMATIONS_AND_CLASHES_REPORT.md) explains compact
+ranks, independent marching cadence, explicit contact markers and synchronized clash
+sounds, including targeted edit reuse and the verified Austerlitz example.
+
+The [camera, captions and trails report](docs/CAMERA_CAPTIONS_TRAILS_REPORT.md) explains
+continuous sector push-ins, gold spoken-word highlighting, dashed traveled routes,
+editable presentation controls and narration-bound timestamp imports.

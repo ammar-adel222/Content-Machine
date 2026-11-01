@@ -96,7 +96,9 @@ def plan_output(ctx, plan):
     b=plan.blueprint.model_dump(mode='json')
     return saved(ctx,plan,views={'spatial':{k:b[k] for k in ('terrain','scale','layout_kind','layout_note')},
         'units':b['forces'],'actions':{'scenes':b['scenes'],'forces':b['forces']},
-        'sound_profiles':{'forces':b['forces'],'scenes':b['scenes']}},
+        'sound_profiles':{'forces':[{k:f[k] for k in ('id','kind','subgroups','side','position')} for f in b['forces']],
+            'actions':[{k:a[k] for k in ('id','kind','unit_id','target_id','route','formation','stagger','claim_ids')}
+                       for s in b['scenes'] for a in s['actions']]}},
         issues=plan.issues if plan.status=='ready' else plan.issues or ['Direction requires revision.'])
 
 
@@ -157,6 +159,14 @@ def adapters(model_factory=None, web_factory=None):
     def direction(ctx):
         dossier=load(ctx,'research',Dossier);script=load(ctx,'writing',Script);req=request(ctx,DirectionRequest)
         previous=Plan.model_validate(ctx.previous.output.data) if ctx.previous else None
+        if (previous and previous.status=='ready' and previous.dossier_sha256==contract_hash(dossier)
+                and previous.script_sha256!=contract_hash(script) and ctx.revision.edit
+                and ctx.revision.edit.kind!='route' and not req.scene_id
+                and not ctx.instructions.get('review_feedback')):
+            # Retain valid choreography after wording edits; the independent plan
+            # review still checks the new script and can route a repair back here.
+            try:return rebind_plan(ctx,ctx.previous)
+            except WorkflowError:pass
         if previous and (previous.dossier_sha256!=contract_hash(dossier) or previous.script_sha256!=contract_hash(script)):
             if req.scene_id:raise WorkflowError('Script or research changed; create a full plan before editing a scene.')
             previous=None

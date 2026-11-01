@@ -45,13 +45,19 @@ function travelFrame(points,progress,trail=0){
  return p;
 }
 export function formationOffset(kind,index,count) {
- const center=index-(count-1)/2;
- const spacing=.084*Math.min(1,8/Math.max(1,count));
- if(kind==='column')return {x:-index*spacing,y:0};
- if(kind==='wedge')return {x:-Math.abs(center)*spacing*.81,y:center*spacing*.94};
- if(kind==='dispersed')return {x:(index%3-1)*spacing*1.1,y:(Math.floor(index/3)-(Math.ceil(count/3)-1)/2)*spacing*1.1};
+ const center=index-(count-1)/2,spacing=.045*Math.min(1,8/Math.max(1,count));
+ if(kind==='column')return {x:-index*.022*Math.min(1,8/Math.max(1,count)),y:0};
+ if(kind==='wedge')return {x:-Math.abs(center)*spacing*.6,y:center*spacing};
+ if(kind==='dispersed')return {x:(index%3-1)*.028,y:(Math.floor(index/3)-(Math.ceil(count/3)-1)/2)*spacing};
  if(kind==='campaign')return {x:0,y:0};
- return {x:0,y:center*spacing};
+ // Two compact ranks keep a force recognizable as a group, rather than a string.
+ const frontage=Math.ceil(count/2),rank=Math.floor(index/frontage),ranks=Math.ceil(count/frontage);
+ return {x:-(rank-(ranks-1)/2)*.022,y:(index%frontage-(frontage-1)/2)*spacing};
+}
+export function marchProgress(progress,index) {
+ const p=clamp(progress);
+ // Bounded monotone variation: separate cadence, identical authored endpoints.
+ return p+.012*Math.sin(Math.PI*p)**2*Math.sin(2*Math.PI*p+index*2.399);
 }
 // Short speed ramps with a steady marching middle, rather than constant easing.
 export function travelEase(value,ramp=.12){
@@ -104,7 +110,7 @@ export function unitState(force,actions,time,index=0,count=1) {
    // Bounded independent departures; every actor still stops within the cue.
    const delay=Math.min((a.stagger??.15)*span,1.2)*index/Math.max(1,count-1);
    const elapsed=time-a.start_sec-delay,duration=Math.max(.001,span-delay);
-   const progress=travelEase(elapsed/duration),raw=travelFrame(a.route,progress);
+   const progress=marchProgress(travelEase(elapsed/duration),index),raw=travelFrame(a.route,progress);
    const target=formationPoint(a.route,progress,a.formation,index,count);
    const blend=smooth((time-a.start_sec)/Math.min(.9,span*.3||.001));
    const before=previousMove?formationCenter(previousMove,1,count):{x:0,y:0};
@@ -121,11 +127,69 @@ export function unitState(force,actions,time,index=0,count=1) {
  const seed=[...force.id].reduce((n,c)=>n+c.charCodeAt(0),0);
  return {x:center.x+offset.x,y:center.y+offset.y,angle,formation,moving,alpha,highlight,...motionPose(force.kind,time,index,moving,seed)};
 }
-export function cameraAt(scenes,time) {
-  let index=scenes.findIndex(s=>time>=s.start && time<s.end);
-  if(index<0) index=time<scenes[0].start?0:scenes.length-1;
-  const current=scenes[index], previous=scenes[Math.max(0,index-1)];
-  const t=smooth((time-current.start)/Math.min(1.3,(current.end-current.start)/3));
-  return {x:previous.focus.x+(current.focus.x-previous.focus.x)*t,y:previous.focus.y+(current.focus.y-previous.focus.y)*t,
-          width:previous.view_width+(current.view_width-previous.view_width)*t,scene:current};
+export function engagementStates(forces,actions,time,scale='tactical') {
+ const units=new Map(forces.map(force=>[force.id,force])),result=[];
+ for(const action of actions){
+  if(action.kind!=='engage'||time<action.start_sec||time>=action.end_sec)continue;
+  const actor=units.get(action.unit_id),target=units.get(action.target_id);
+  if(!actor||!target||actor.side===target.side)continue;
+  const a=unitState(actor,actions,time),b=unitState(target,actions,time);
+  if(a.alpha<=.1||b.alpha<=.1)continue;
+  if(scale==='tactical'&&['infantry','cavalry','army'].includes(actor.kind)&&Math.hypot(a.x-b.x,a.y-b.y)>.080001)continue;
+  const elapsed=time-action.start_sec,remaining=action.end_sec-time;
+  result.push({id:action.id,actor:actor.side,target:target.side,x:(a.x+b.x)/2,y:(a.y+b.y)/2,
+   strength:smooth(elapsed/.08)*smooth(remaining/.15),burst:Math.max(0,1-(elapsed%.65)/.3)});
+ }
+ return result;
+}
+export function movementTrails(forces,actions,time) {
+ const result=[];
+ for(const force of forces){
+  const state=unitState(force,actions,time);if(state.alpha<=.1)continue;
+  let points=[],latest=null;
+  for(const action of actions.filter(a=>a.unit_id===force.id&&['move','withdraw'].includes(a.kind)).sort((a,b)=>a.start_sec-b.start_sec)){
+   if(time<=action.start_sec)break;
+   if(action.route?.length<2||action.end_sec<=action.start_sec)continue;
+   const progress=marchProgress(travelEase((time-action.start_sec)/(action.end_sec-action.start_sec)),0);
+   const route=action.route,info=routeInfo(route);let distance=info.total*progress,part=[route[0]];
+   for(const segment of info.segments){
+    if(distance>=segment.length){part.push(segment.b);distance-=segment.length;}
+    else{const f=distance/segment.length;part.push({x:segment.a.x+(segment.b.x-segment.a.x)*f,y:segment.a.y+(segment.b.y-segment.a.y)*f});break;}
+   }
+   const last=points.at(-1);
+   if(last&&Math.hypot(last.x-route[0].x,last.y-route[0].y)<1e-6)points.push(...part.slice(1));else points=part;
+   latest=action;
+  }
+  if(!latest||time>=latest.end_sec+2||points.length<2)continue;
+  const alpha=smooth((time-latest.start_sec)/.35)*(1-clamp((time-latest.end_sec)/2));
+  result.push({id:force.id,side:force.side,points,alpha});
+ }
+ return result;
+}
+export function dashedSegments(points,dash=10,gap=7) {
+ if(!Number.isFinite(dash)||!Number.isFinite(gap)||dash<=0||gap<=0)throw Error('Dash and gap lengths must be positive.');
+ const output=[];let phase=0;
+ for(let i=1;i<points.length;i++){
+  const a=points[i-1],b=points[i],length=Math.hypot(b.x-a.x,b.y-a.y);if(length<1e-8)continue;
+  let distance=0;
+  while(distance<length-1e-8){
+   const drawing=phase<dash,remaining=(drawing?dash:dash+gap)-phase;
+   const step=Math.min(length-distance,remaining);
+   if(drawing&&step>1e-8)output.push([{x:a.x+(b.x-a.x)*distance/length,y:a.y+(b.y-a.y)*distance/length},
+    {x:a.x+(b.x-a.x)*(distance+step)/length,y:a.y+(b.y-a.y)*(distance+step)/length}]);
+   distance+=step;phase=(phase+step)%(dash+gap);
+  }
+ }
+ return output;
+}
+export const sceneIndex=(scenes,time)=>Math.max(0,scenes.findLastIndex(scene=>scene.start<=time));
+export function cameraAt(scenes,time,pushIn=.08) {
+ const index=sceneIndex(scenes,time);
+ const current=scenes[index],previous=scenes[Math.max(0,index-1)];
+ const progress=clamp((time-current.start)/Math.max(.001,current.end-current.start));
+ const width=current.view_width/(1+pushIn*progress);
+ const t=index===0?1:smooth((time-current.start)/Math.min(1.3,(current.end-current.start)/3));
+ const previousWidth=previous.view_width/(1+pushIn);
+ return {x:previous.focus.x+(current.focus.x-previous.focus.x)*t,y:previous.focus.y+(current.focus.y-previous.focus.y)*t,
+  width:previousWidth+(width-previousWidth)*t,scene:current};
 }

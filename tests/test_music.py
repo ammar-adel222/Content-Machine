@@ -11,7 +11,7 @@ import unittest
 from unittest.mock import patch
 from pydantic import ValidationError
 from war_content.music_models import MusicConfig, MusicSource, MixSettings
-from war_content.music_render import ambient_bed, fit_track, mix_music
+from war_content.music_render import ambient_bed, pulse_bed, fit_track, mix_music
 from war_content.music import compile_bundle, decode_track, main, prepare_music
 from war_content.sound_effects import compile_bundle as compile_effects
 from war_content.sound_models import SoundConfig
@@ -34,6 +34,20 @@ class MusicRenderTests(unittest.TestCase):
         self.assertEqual(first,ambient_bed(1000));self.assertEqual(len(first),32*1000*2)
         self.assertTrue(all(math.isfinite(v) for v in first));self.assertGreater(max(abs(v) for v in first),.01)
         self.assertNotEqual(first[:2000],first[16000:18000])
+
+    def test_pulse_arrangement_is_original_deterministic_and_distinct(self):
+        pulse=pulse_bed(1000)
+        self.assertEqual(pulse,pulse_bed(1000));self.assertNotEqual(pulse,ambient_bed(1000))
+        self.assertEqual(len(pulse),64000);self.assertTrue(all(math.isfinite(v) for v in pulse))
+        with self.assertRaises(ValidationError):MusicSource(kind='file',path='track.wav',arrangement='pulse')
+
+    def test_arrangement_changes_prepared_music_cache_identity(self):
+        with TemporaryDirectory() as folder:
+            source=array('f',[.1,-.1])*24000
+            with patch('war_content.music.ambient_bed',return_value=source),patch('war_content.music.pulse_bed',return_value=source):
+                first=prepare_music(MusicConfig(),.5,folder,Path(folder)/'cache')[1]
+                second=prepare_music(MusicConfig(source=MusicSource(arrangement='pulse')),.5,folder,Path(folder)/'cache')[1]
+            self.assertNotEqual(first['cache_key'],second['cache_key'])
 
     def test_track_normalization_repeat_fades_and_padding(self):
         samples=array('f',(.2*math.sin(2*math.pi*20*i/1000) for i in range(1000) for c in (0,1)))

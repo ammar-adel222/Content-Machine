@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {angleDelta,mixAngle,motionPose,travelEase,cameraAt,formationOffset,routeSample,unitState,smooth} from '../../war_content/web/motion.mjs';
+import {angleDelta,mixAngle,motionPose,travelEase,cameraAt,formationOffset,routeSample,unitState,smooth,marchProgress,engagementStates,movementTrails,dashedSegments,sceneIndex} from '../../war_content/web/motion.mjs';
 const force={id:'a',position:{x:0.1,y:0.3}};
 const actions=[{kind:'introduce',unit_id:'a',start_sec:1,end_sec:1},
  {kind:'move',unit_id:'a',start_sec:2,end_sec:10,route:[force.position,{x:.8,y:.3}],stagger:.2,formation:'column'},
@@ -75,7 +75,7 @@ test('column-to-line deployment keeps neighboring ranks separated instead of cro
  for(let time=.3;time<11;time+=.025){
   const positions=Array.from({length:4},(_,i)=>unitState(f,a,time,i,4));
   for(let i=0;i<4;i++)for(let j=i+1;j<4;j++)
-   assert.ok(Math.hypot(positions[i].x-positions[j].x,(positions[i].y-positions[j].y)*16/9)>.075);
+   assert.ok(Math.hypot(positions[i].x-positions[j].x,(positions[i].y-positions[j].y)*16/9)>.012);
  }
 });
 test('all formations, highlights, engagement and camera interpolation',()=>{
@@ -84,4 +84,63 @@ test('all formations, highlights, engagement and camera interpolation',()=>{
  const scenes=[{start:0,end:5,focus:{x:.5,y:.5},view_width:1},{start:5,end:10,focus:{x:.7,y:.6},view_width:.5}];
  assert.equal(cameraAt(scenes,-1).x,.5);assert.equal(cameraAt(scenes,11).x,.7);
  assert.ok(cameraAt(scenes,5.5).width<1 && cameraAt(scenes,5.5).width>.5);
+});
+
+
+test('six subgroups form compact ranks and a shorter column rather than a long loose string',()=>{
+ const ranks=Array.from({length:6},(_,i)=>formationOffset('line',i,6));
+ assert.equal(new Set(ranks.map(p=>p.x)).size,2);assert.equal(new Set(ranks.map(p=>p.y)).size,3);
+ assert.ok(Math.max(...ranks.map(p=>p.y))-Math.min(...ranks.map(p=>p.y))<.1);
+ const column=Array.from({length:6},(_,i)=>formationOffset('column',i,6));
+ assert.ok(Math.abs(column.at(-1).x-column[0].x)<.12);
+});
+
+test('independent marching progress remains monotone and reaches the authored endpoints',()=>{
+ const mid=new Set();
+ for(let i=0;i<8;i++){
+  assert.equal(marchProgress(0,i),0);assert.equal(marchProgress(1,i),1);mid.add(marchProgress(.35,i));
+  let previous=0;for(let p=0;p<=1;p+=.005){const next=marchProgress(p,i);assert.ok(next>=previous);assert.ok(next>=0&&next<=1);previous=next;}
+ }
+ assert.equal(mid.size,8);
+});
+
+test('clash indicators require live opposing forces in contact and share engagement boundaries',()=>{
+ const forces=[{id:'left',side:'Blue',kind:'infantry',position:{x:.4,y:.5}},{id:'right',side:'Red',kind:'infantry',position:{x:.45,y:.5}}];
+ const rows=forces.map(f=>({kind:'introduce',unit_id:f.id,start_sec:0}));
+ const contact={id:'fight',kind:'engage',unit_id:'left',target_id:'right',start_sec:2,end_sec:4};rows.push(contact);
+ assert.equal(engagementStates(forces,rows,1).length,0);assert.equal(engagementStates(forces,rows,4).length,0);
+ const current=engagementStates(forces,rows,2.2);assert.equal(current.length,1);assert.equal(current[0].x,.42500000000000004);
+ assert.deepEqual(current,engagementStates(forces,rows,2.2));
+ assert.equal(engagementStates([forces[0],{...forces[1],side:'Blue'}],rows,2.2).length,0);
+ assert.equal(engagementStates([forces[0],{...forces[1],position:{x:.9,y:.9}}],rows,2.2).length,0);
+ assert.equal(engagementStates(forces,[...rows,{kind:'fade',unit_id:'right',start_sec:.2,end_sec:1}],2.2).length,0);
+ assert.equal(engagementStates(forces,[{...contact,target_id:'unknown'}],2.2).length,0);
+});
+
+
+test('each static sector gets a continuous eight-percent push with no cut at its transition',()=>{
+ const scenes=[{start:0,end:10,focus:{x:.5,y:.5},view_width:1},{start:10.2,end:20,focus:{x:.6,y:.6},view_width:.8},{start:21,end:30,focus:{x:.3,y:.3},view_width:.6}];
+ const early=cameraAt(scenes,2),later=cameraAt(scenes,8);
+ assert.ok(later.width<early.width);assert.ok(Math.abs(cameraAt(scenes,10).width-1/1.08)<1e-9);
+ assert.equal(sceneIndex(scenes,10.1),0);assert.equal(cameraAt(scenes,10.1).scene,scenes[0]);
+ assert.ok(Math.abs(cameraAt(scenes,10.2).width-cameraAt(scenes,10.2-1e-6).width)<1e-6);
+ assert.ok(cameraAt(scenes,29).width<cameraAt(scenes,23).width);
+ assert.equal(cameraAt(scenes,8,0).width,1);
+});
+
+test('trails stop at traveled corners, retain their origin and fade after a halt',()=>{
+ const f={id:'a',side:'Blue',kind:'infantry',position:{x:0,y:0}},rows=[{kind:'introduce',unit_id:'a',start_sec:0},
+ {kind:'move',unit_id:'a',start_sec:1,end_sec:5,formation:'column',route:[{x:0,y:0},{x:.5,y:0},{x:.5,y:.5}]},
+ {kind:'move',unit_id:'a',start_sec:6,end_sec:10,formation:'line',route:[{x:.5,y:.5},{x:.8,y:.5}]}];
+ assert.deepEqual(movementTrails([f],rows,.5),[]);
+ const during=movementTrails([f],rows,4)[0];assert.deepEqual(during.points[0],f.position);
+ assert.ok(during.points.at(-1).y<.5);assert.ok(during.points.every(p=>p.y===0||p.x===.5));
+ assert.deepEqual(movementTrails([f],rows,12),[]);
+ const second=movementTrails([f],rows,8)[0];assert.deepEqual(second.points[0],f.position);
+ assert.deepEqual(second,movementTrails([f],rows,8)[0]);
+ const broken=[...rows.slice(0,2),{...rows[2],route:[{x:.7,y:.7},{x:.8,y:.8}]}];
+ assert.deepEqual(movementTrails([f],broken,8)[0].points[0],{x:.7,y:.7});
+ const dashes=dashedSegments([{x:0,y:0},{x:10,y:0},{x:10,y:20}],6,4);
+ assert.ok(dashes.length>1);assert.ok(dashes.every(([a,b])=>a.x===b.x||a.y===b.y));
+ assert.throws(()=>dashedSegments([],0,4));assert.throws(()=>dashedSegments([],4,-1));
 });

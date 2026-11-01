@@ -24,7 +24,20 @@ class Sample(Model):
     attribution: str = Field(min_length=1, max_length=500)
 
 
+class BattleTexture(Model):
+    """Illustrative non-weapon combat texture, explicitly linked to sourced fighting."""
+    unit_id: str
+    claim_id: str
+    rationale: str = Field(min_length=12,max_length=500)
+    start: float = Field(ge=0,le=150,allow_inf_nan=False)
+    end: float = Field(gt=0,le=150,allow_inf_nan=False)
+    gain_db: float = Field(default=-18,ge=-40,le=-6,allow_inf_nan=False)
+
+
 class SoundConfig(Model):
+    clash_enabled: bool = True
+    clash_gain_db: float = Field(default=-12,ge=-40,le=-6,allow_inf_nan=False)
+    textures: list[BattleTexture] = Field(default_factory=list,max_length=12)
     profiles: dict[str, SoundProfile] = Field(default_factory=dict)
     spots: list[SpotSound] = Field(default_factory=list, max_length=100)
     samples: dict[Effect, Sample] = Field(default_factory=dict)

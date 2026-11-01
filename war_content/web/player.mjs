@@ -81,7 +81,7 @@ async function start() {
   const hud=filmOverlay(data,app,'Schematic geography · symbolic force groups',sides.join(' / '));
   function renderAt(seconds) {
     const time=clamp(seconds,0,data.duration);
-    const camera=cameraAt(data.scenes,time),framing=coverCamera({x:(camera.x-camera.width/2)*W,y:(camera.y-camera.width/2)*H,width:camera.width*W,height:camera.width*H},SW,SH,{x:camera.x*W,y:camera.y*H});
+    const camera=cameraAt(data.scenes,time,data.presentation?.camera_push_in??.08),framing=coverCamera({x:(camera.x-camera.width/2)*W,y:(camera.y-camera.width/2)*H,width:camera.width*W,height:camera.width*H},SW,SH,{x:camera.x*W,y:camera.y*H});
     const scale=framing.scale;world.scale.set(scale);world.position.set(framing.x,framing.y);
     const occupied=[];
     for(const unit of units.render(time)){
@@ -97,7 +97,7 @@ async function start() {
       if(box){item.text.position.set(box.x,box.y);occupied.push(box);visibleLabels++;
         leaders.moveTo(anchor.x,anchor.y).lineTo(box.x+box.width/2,box.y+box.height/2).stroke({color:0x667767,width:1,alpha:.5});}
     }
-    hud.update(time,camera.scene.labels.join(' · '));
+    hud.update(time,camera.scene.labels.join(' · '),[],units.engagements);
     app.renderer.render(app.stage);
   }
   connectPlayback(data,app,renderAt);

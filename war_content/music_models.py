@@ -7,6 +7,7 @@ from war_research.models import Model
 
 class MusicSource(Model):
     kind: Literal['ambient','file']='ambient'
+    arrangement: Literal['ambient','pulse']='ambient'
     path: str | None = None
     title: str = Field(default='Quiet atlas ambient bed',min_length=1,max_length=150)
     attribution: str = Field(default='Original demonstration bed, generated locally.',min_length=1,max_length=1000)
@@ -16,6 +17,7 @@ class MusicSource(Model):
 
     @model_validator(mode='after')
     def selected(self):
+        if self.kind=='file' and self.arrangement!='ambient':raise ValueError('File tracks do not accept a synthesized arrangement.')
         if self.kind=='file' and not self.path:raise ValueError('File music needs a local track path.')
         if self.kind=='ambient' and self.path:raise ValueError('Ambient music does not use a file path.')
         if self.kind=='file':

@@ -1,3 +1,4 @@
+import {sceneIndex} from './motion.mjs';
 import {drawUnit} from './symbols.mjs';
 import {placeLabel} from './labels.mjs';
 import {clamp,smooth} from './motion.mjs';
@@ -88,9 +89,12 @@ export async function createGeography(data,app) {
  app.stage.addChild(new Graphics().poly([W-53,143,W-63,167,W-43,167],true).fill(ink));
  const mapIndex=scene=>maps.length>1&&scene.labels.some(label=>/terrain|heights|roads|ridge|hills/i.test(label))?1:0;
  return time=>{
-  let index=data.scenes.findIndex(s=>time>=s.start&&time<s.end);if(index<0)index=data.scenes.length-1;
+  const index=sceneIndex(data.scenes,time);
   const scene=data.scenes[index],active=mapIndex(scene),previous=mapIndex(data.scenes[Math.max(0,index-1)]);
   const fade=smooth((time-scene.start)/.7);
+  const progress=clamp((time-scene.start)/Math.max(.001,scene.end-scene.start)),push=data.presentation?.camera_push_in??.08;
+  const zoom=index===0?1+push*progress:(1+push)+(push*progress-push)*fade;
+  for(const map of maps){map.group.pivot.set(W/2,H/2);map.group.position.set(W/2,H/2);map.group.scale.set(zoom);}
   for(let i=0;i<maps.length;i++){maps[i].group.visible=i===active||(i===previous&&fade<1);maps[i].group.alpha=active===previous?1:i===active?fade:1-fade;}
   for(const marker of markers){
    let alpha=1;for(const a of marker.fades)if(time>=a.start_sec)alpha=1-smooth(clamp((time-a.start_sec)/(a.end_sec-a.start_sec)));

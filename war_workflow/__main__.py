@@ -48,9 +48,10 @@ def main(argv=None):
             from .authoring import adapters as authoring_adapters
             from .speech import adapters as speech_adapters
             from .production import adapters as production_adapters
+            from .audio import adapters as audio_adapters
             from war_research.providers import load_env
             if args.env_file.exists():load_env(args.env_file)
-            revision=Runner(store,adapters()|authoring_adapters()|speech_adapters()|production_adapters()).run(args.revision)
+            revision=Runner(store,adapters()|authoring_adapters()|speech_adapters()|production_adapters()|audio_adapters()).run(args.revision)
         else:revision=store.load(args.revision)
         print(json.dumps(describe(revision)|{'executed':revision.executed,'reused':revision.reused,
                                            'issues':revision.issues,'budgets':store.budgets(revision.id)},indent=2))

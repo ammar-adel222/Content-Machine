@@ -15,6 +15,8 @@ class ReviewerAgent:
             "readability from 0 to 5. Four is the passing target. Flag substantive unsupported details, "
             "invented maneuvers, misleading geography, unexplained arrivals, chronology errors, rigid "
             "whole-army motion, unreadable labels, and lost narration emphasis. "
+            "For scripts, reject a date/weekday-led opening, a long opening setup before the tactical problem, "
+            "or slow padded delivery. A role named hook is not evidence of an effective hook. "
             "Visually explain terrain mentioned in narration: a generic island shape is insufficient "
             "if narrated roads, rocky ground or rivers are never represented or highlighted. "
             "Whole-war plans should use campaign-scale markers rather than miniature tactical battles. Schematic layout is "

@@ -88,6 +88,15 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(len(self.visual.calls),calls);self.assertEqual(len(self.renders),renders)
         self.assertNotIn('final_review',result.artifacts)
 
+    def test_approved_requirements_survive_a_provider_failure_without_replanning(self):
+        from war_research.providers import ProviderError
+        with patch('war_workflow.production.ContentAgent.design_asset',side_effect=ProviderError('Synthetic provider failure')):
+            result=self.runner.run()
+        self.assertEqual(result.blocked_stage,'terrain')
+        self.assertEqual(sum(schema is Manifest and prompt.startswith('Plan only terrain') for schema,prompt,kwargs in self.visual.calls),1)
+        result=self.runner.run();self.assertIn('picture',result.artifacts)
+        self.assertEqual(sum(schema is Manifest and prompt.startswith('Plan only terrain') for schema,prompt,kwargs in self.visual.calls),1)
+
     def test_unit_edit_creates_a_new_supported_design_and_retains_terrain_and_voice(self):
         parent=self.runner.run();previous=Manifest.model_validate(self.artifact('assets').output.data['manifest'])
         edited=previous.model_copy(deep=True)
@@ -213,11 +222,89 @@ class ProductionTests(unittest.TestCase):
         for stage in ('assets','terrain','narration'):self.assertEqual(result.artifacts[stage],parent.artifacts[stage])
         self.assertEqual(self.artifact('picture').output.data['aspect'],'landscape')
 
+    def test_upstream_motion_edit_does_not_demand_an_unrelated_unit_redesign(self):
+        parent=self.runner.run();revision=self.store.load()
+        revision.params.setdefault('assets',{})['notes']='Preserve the requested symbolic equipment style.'
+        self.store.save(revision)
+        self.store.edit(Edit(parent_revision=parent.id,kind='route',notes='Clarify the existing maneuver.'))
+        result=self.runner.run()
+        self.assertNotEqual(result.blocked_stage,'assets')
+        self.assertNotIn('requested design did not change',' '.join(result.issues))
+
+    def test_presentation_controls_preserve_audio_and_bind_word_sources_by_hash(self):
+        from war_narration.models import Narration
+        from war_narration.words import estimate_words
+        parent=self.runner.run();voice=Narration.model_validate(self.artifact('narration').output.data['narration'])
+        words=estimate_words(voice);path=self.root/'words.json';path.write_text(words.model_dump_json())
+        self.store.edit(Edit(parent_revision=parent.id,kind='caption',patch={'camera_push_in':.08,'movement_trails':True,'caption_stroke_px':10,'caption_word_timing':str(path)}))
+        result=self.runner.run();review=self.artifact('visual_review')
+        self.assertEqual(result.artifacts['narration'],parent.artifacts['narration'])
+        self.assertEqual(review.output.data['word_timing_basis'],'local_estimate')
+        scene=json.loads((Path(review.output.data['bundle'])/'scene.json').read_text())
+        self.assertTrue(scene['captions'][0]['words']);self.assertEqual(scene['presentation']['caption_stroke_px'],10)
+        words.source_sha256='0'*64;path.write_text(words.model_dump_json())
+        self.store.edit(Edit(parent_revision=result.id,kind='caption',patch={'caption_word_timing':str(path)}))
+        failed=self.runner.run();self.assertEqual(failed.blocked_stage,'visual_review')
+        self.assertIn('visual_review failed (ValueError)',failed.issues[0])
+
     def test_camera_notes_are_not_silently_ignored(self):
         parent=self.runner.run()
         self.store.edit(Edit(parent_revision=parent.id,kind='camera',notes='Zoom much closer.'))
         result=self.runner.run();self.assertEqual(result.blocked_stage,'visual_review')
         self.assertIn('director',result.issues[0])
+
+    def test_structured_camera_edits_preserve_other_shots_and_all_upstream_assets(self):
+        parent=self.runner.run();calls=sum(s is FrameReview for s,p,k in self.visual.calls)
+        shot={'focus':{'x':.25,'y':.75},'view_width':.85}
+        self.store.edit(Edit(parent_revision=parent.id,kind='camera',patch={'camera_overrides':{'s1':shot}}))
+        result=self.runner.run();review=self.artifact('visual_review')
+        scene=json.loads((Path(review.output.data['bundle'])/'scene.json').read_text(encoding='utf-8'))
+        self.assertEqual(scene['scenes'][0]['focus'],shot['focus'])
+        self.assertEqual(sum(s is FrameReview for s,p,k in self.visual.calls)-calls,1)
+        for stage in ('narration','direction','terrain','assets'):self.assertEqual(result.artifacts[stage],parent.artifacts[stage])
+        self.store.edit(Edit(parent_revision=result.id,kind='camera',patch={'camera_overrides':{'s2':shot}}))
+        result=self.runner.run();self.assertEqual(set(self.artifact('visual_review').output.data['camera_overrides']),{'s1','s2'})
+        self.store.edit(Edit(parent_revision=result.id,kind='camera',patch={'camera_overrides':{'s1':None}}))
+        self.runner.run();self.assertEqual(set(self.artifact('picture').output.data['camera_overrides']),{'s2'})
+
+    def test_camera_edits_before_first_picture_inherit_all_reviewed_shots(self):
+        from war_workflow.production import picture_settings
+        self.runner.run()
+        first={'focus':{'x':.25,'y':.75},'view_width':.85}
+        second={'focus':{'x':.65,'y':.4},'view_width':.9}
+        revision=self.store.load()
+        self.store.edit(Edit(parent_revision=revision.id,kind='camera',patch={'camera_overrides':{'s1':first}}))
+        self.runner.run()
+        revision=self.store.load()
+        self.store.edit(Edit(parent_revision=revision.id,kind='camera',patch={'camera_overrides':{'s2':second}}))
+        self.runner.run()
+        revision=self.store.load();revision.artifacts.pop('picture');self.store.save(revision)
+        context=self.runner.context(revision,'picture')
+        context.previous=None
+        self.assertEqual(set(picture_settings(context).camera_overrides),{'s1','s2'})
+
+    def test_completed_frame_reviews_survive_a_later_provider_failure(self):
+        from war_research.providers import ProviderError
+        original=self.visual.generate;count=0
+        def interrupted(prompt,schema,consume,**kwargs):
+            nonlocal count
+            if schema is FrameReview:
+                count+=1
+                if count==2:
+                    consume();self.visual.calls.append((schema,prompt,kwargs));raise ProviderError('Synthetic provider failure')
+            return original(prompt,schema,consume,**kwargs)
+        with patch.object(self.visual,'generate',side_effect=interrupted):result=self.runner.run()
+        self.assertEqual(result.blocked_stage,'visual_review')
+        self.runner.run()
+        self.assertEqual(sum(schema is FrameReview for schema,prompt,kwargs in self.visual.calls),5)
+        self.assertIn('picture',self.store.load().artifacts)
+
+    def test_unknown_camera_scene_and_invalid_override_map_fail_without_model_calls(self):
+        parent=self.runner.run();calls=len(self.visual.calls)
+        self.store.edit(Edit(parent_revision=parent.id,kind='camera',patch={'camera_overrides':{'absent':{'focus':{'x':.5,'y':.5},'view_width':1}}}))
+        result=self.runner.run();self.assertIn('unknown scene',result.issues[0]);self.assertEqual(len(self.visual.calls),calls)
+        self.store.edit(Edit(parent_revision=result.id,kind='camera',patch={'camera_overrides':None}))
+        result=self.runner.run();self.assertIn('must be a map',result.issues[0])
 
     def test_subset_manifest_validation_rejects_cross_category_objects(self):
         d,s,p=ready();full=manifest(d,p)
@@ -227,6 +314,13 @@ class ProductionTests(unittest.TestCase):
 
 
 class ExportTests(unittest.TestCase):
+    def test_source_credits_are_deduplicated_and_fit_a_single_phone_line(self):
+        from war_workflow.production import terrain_credits
+        result=terrain_credits({'sources':[{'license':'GeoNames CC BY; details'},
+            {'license':'OpenStreetMap contributors, ODbL; details'}]+[{'license':'Mapzen Terrain Tiles; full attribution details'}]*6})
+        self.assertLess(len(result),130);self.assertEqual(result.count('Mapzen'),1)
+        self.assertIn('openstreetmap.org/copyright',result)
+
     def test_subprocess_arguments_timeouts_and_encoder_failures_are_bounded(self):
         with TemporaryDirectory() as tmp:
             target=Path(tmp)/'frame.png';target.write_bytes(b'fixture')

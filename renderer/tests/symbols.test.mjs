@@ -1,6 +1,7 @@
+import {unitRotation} from '../../war_content/web/units.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {designBounds,drawUnit} from '../../war_content/web/symbols.mjs';
+import {designBounds,drawUnit,factionRoster} from '../../war_content/web/symbols.mjs';
 
 test('unit bounds include outlines and asymmetric paths, ignoring unused canvas padding',()=>{
  const shape={primitives:[{kind:'rect',x:.3,y:-.1,width:.4,height:.2,stroke:'ink',stroke_width:.1}]};
@@ -22,4 +23,19 @@ test('unit renderer centers artwork and gives different silhouettes the requeste
    assert.equal(unit.zoom*width*64,48);assert.equal(unit.children[0].x,0);assert.equal(unit.children[0].y,0);
   }
  }finally{globalThis.PIXI=original;}
+});
+
+test('France and Allies retain distinct identity across reordered forces',()=>{
+ const forces=[{side:'French'},{side:'Allied'},{side:'French'}],roster=factionRoster(forces);
+ assert.deepEqual(roster,factionRoster([...forces].reverse()));
+ assert.equal(roster.find(f=>f.id==='French').color,0x477f92);
+ assert.equal(roster.find(f=>f.id==='Allied').color,0xb2634e);
+ assert.equal(roster.find(f=>f.id==='French').label,'France');assert.equal(roster.length,2);
+});
+
+test('upright equipment glyphs never rotate with a formation heading',()=>{
+ for(const angle of [-Math.PI,-1,0,1,Math.PI]){
+  assert.equal(unitRotation('upright',angle),0);
+  assert.equal(unitRotation('heading',angle),angle);
+ }
 });

@@ -9,6 +9,7 @@ from war_writer.models import Script
 from war_writer.agent import fingerprint as contract_hash
 from war_director.models import Plan
 from war_research.models import Dossier
+from war_reviewer.models import QualityReview
 from .graph import Adapter
 from .models import Output
 from .planner import fingerprint
@@ -20,7 +21,8 @@ def config(ctx,script):
     edit=ctx.revision.edit
     values={'model':os.environ.get('GEMINI_TTS_MODEL','gemini-3.8-flash-tts'),
             'voice':os.environ.get('GEMINI_TTS_VOICE','Charon')}|previous
-    patch=edit.patch if previous and edit and edit.kind=='narration' else {} if previous else ctx.params
+    applied_settings=ctx.previous.output.data.get('request_settings',{}) if ctx.previous else {}
+    patch={key:value for key,value in ctx.params.items() if key not in applied_settings or applied_settings[key]!=value}
     values|=patch
     scenes=ctx.instructions.get('scene_ids',[]);phrases=ctx.instructions.get('object_ids',[])
     if (scenes or phrases) and edit and edit.kind=='narration' and {'voice','model','notes'}&set(edit.patch):
@@ -48,7 +50,7 @@ def output(ctx,narration,script):
     path=ctx.output_dir/('audio-timing-'+fingerprint(measured)+'.json');atomic(path,measured.model_dump_json(indent=2).encode())
     edit=ctx.revision.edit
     applied=edit.request_id if edit and edit.kind=='narration' else ctx.previous.output.data.get('applied_edit') if ctx.previous else None
-    return Output(data={'narration':narration.model_dump(mode='json'),'duration':narration.frames/narration.sample_rate,'present':True,'applied_edit':applied},
+    return Output(data={'narration':narration.model_dump(mode='json'),'duration':narration.frames/narration.sample_rate,'present':True,'applied_edit':applied,'request_settings':dict(ctx.params)},
         files={'wave':narration.wave,'manifest':str(manifest),'audio_timing':str(path)}|
               {c.phrase_id:c.file for c in narration.clips},
         views={'waveform':narration.sha256,'timing':{'audio':measured.model_dump(mode='json'),'alignment':alignment(narration)}})
@@ -75,12 +77,16 @@ def adapters(provider_factory=None):
         narration=Narration.model_validate(ctx.inputs['narration'].output.data['narration'])
         plan=Plan.model_validate(ctx.inputs['direction'].output.data)
         dossier=Dossier.model_validate(ctx.inputs['research'].output.data)
+        reviewed=QualityReview.model_validate(ctx.store.read_artifact('plan_review',ctx.revision.artifacts['plan_review']).output.data)
+        if reviewed.status!='pass' or reviewed.artifact_sha256!=contract_hash(plan.blueprint):
+            raise WorkflowError('Timing needs the current passing blueprint review.')
+        plan=plan.model_copy(update={'review':reviewed})
         timed,clock=align_plan(dossier,script,plan,narration)
         path=ctx.output_dir/('timed-plan-'+fingerprint(timed)+'.json');atomic(path,timed.model_dump_json(indent=2).encode())
         subtitle=ctx.output_dir/('captions-'+fingerprint(clock['phrases'])+'.srt');atomic(subtitle,srt(clock['phrases']).encode())
         return Output(data=clock|{'plan':timed.model_dump(mode='json')},files={'plan':str(path),'captions':str(subtitle)},
             views={'duration':clock['duration'],'visual':{'phrases':clock['phrases'],'scenes':clock['scenes'],'actions':clock['actions']},
                    'effects':{'duration':clock['duration'],'actions':clock['actions']}},issues=timed.issues)
-    return {'narration':Adapter(narrate,'gemini-speech-v1-'+fingerprint(defaults)[:16],rebind,
+    return {'narration':Adapter(narrate,'gemini-speech-v2-'+fingerprint(defaults)[:16],rebind,
                                lambda ctx:config(ctx,Script.model_validate(ctx.inputs['writing'].output.data)).model_dump(mode='json')),
-            'timing':Adapter(timing,'measured-clock-v1')}
+            'timing':Adapter(timing,'measured-clock-v2-reviewed-plan')}

@@ -11,7 +11,7 @@ from unittest.mock import patch
 from urllib.error import URLError
 import wave
 from pydantic import ValidationError
-from war_narration.agent import generate, verify, alignment, audio_timing, prepare
+from war_narration.agent import generate, verify, alignment, audio_timing, prepare, atomic, trim_edges, inspect
 from war_narration.models import NarrationRequest
 from war_narration.provider import GeminiSpeech, SpeechQuotaError
 from war_narration.timing import align_plan, srt
@@ -47,6 +47,30 @@ class NarrationTests(unittest.TestCase):
 
     def generate(self,script=None,request=None,consume=lambda:None):
         return generate(script or self.script,self.output,self.cache,lambda:self.provider,request,consume)
+
+    def test_atomic_write_does_not_push_a_valid_target_past_windows_path_limit(self):
+        folder=self.root/('p'*max(1,170-len(str(self.root))))
+        target=folder/('narration-'+'a'*64+'.wav')
+        original=Path.write_bytes
+        def windows_limit(path,data):
+            if len(str(path))>=260:raise FileNotFoundError('Simulated Windows MAX_PATH')
+            return original(path,data)
+        with patch.object(Path,'write_bytes',windows_limit):atomic(target,b'valid output')
+        self.assertEqual(target.read_bytes(),b'valid output')
+        self.assertEqual(list(folder.iterdir()),[target])
+
+    def test_edge_trim_removes_provider_padding_and_changes_the_cache_identity(self):
+        buffer=io.BytesIO()
+        with wave.open(buffer,'wb') as audio:
+            audio.setnchannels(1);audio.setsampwidth(2);audio.setframerate(24000)
+            audio.writeframes(b'\0'*14400+b'\x00\x10'*4800+b'\0'*19200)
+        trimmed=trim_edges(buffer.getvalue());frames,_=inspect(trimmed)
+        self.assertTrue(.29*24000<=frames<=.33*24000)
+        self.assertNotEqual(prepare(self.script,NarrationRequest())[0][2],prepare(self.script,NarrationRequest(trim_silence=True))[0][2])
+        self.provider.synthesize=lambda *args:buffer.getvalue()
+        result=self.generate(request=NarrationRequest(trim_silence=True));verify(result,self.script)
+        self.assertTrue(all(c.frames==frames for c in result.clips))
+        self.assertEqual(self.generate(request=NarrationRequest(trim_silence=True)).requests,0)
 
     def test_pcm_assembly_uses_measured_samples_and_adds_pauses_once(self):
         narration=self.generate();verify(narration,self.script)
@@ -230,6 +254,30 @@ class SpeechGraphTests(unittest.TestCase):
         self.assertEqual(self.runner.run().status,'quota_wait')
         self.provider.error=None;result=self.runner.run()
         self.assertIn('timing',result.artifacts);self.assertEqual(len(self.model.calls),models+1) # plan review ran after narration resumed
+
+    def test_queued_settings_keep_delivery_when_a_later_edit_changes_the_voice(self):
+        from war_workflow.models import Edit
+        self.runner.run()
+        first=self.store.edit(Edit(parent_revision=self.store.load().id,kind='narration',patch={'notes':'Brisk and engaged.','trim_silence':True}))
+        self.store.edit(Edit(parent_revision=first.id,kind='narration',patch={'voice':'Kore'}))
+        self.runner.run();saved=self.artifact('narration').output.data
+        self.assertEqual(saved['narration']['request']['notes'],'Brisk and engaged.')
+        self.assertTrue(saved['narration']['request']['trim_silence'])
+        self.assertEqual(saved['narration']['request']['voice'],'Kore')
+        self.assertEqual(saved['request_settings'],self.store.load().params['narration'])
+
+    def test_timing_binds_current_external_plan_review_and_rejects_mismatched_review(self):
+        from war_workflow.models import Output
+        from war_workflow.planner import fingerprint as key
+        self.runner.run();revision=self.store.load();data=self.artifact('direction').output.data.copy();data['review']=None
+        direction=self.store.write_artifact('direction',key('external review binding'),Output(data=data))
+        revision.artifacts['direction']=direction.id;self.store.save(revision)
+        ctx=self.runner.context(revision,'timing');result=self.registry['timing'].run(ctx)
+        self.assertEqual(result.data['plan']['review']['status'],'pass')
+        bad=self.artifact('plan_review').output.data.copy();bad['artifact_sha256']='0'*64
+        review=self.store.write_artifact('plan_review',key('mismatched external review'),Output(data=bad,review='pass'))
+        revision.artifacts['plan_review']=review.id;self.store.save(revision)
+        with self.assertRaisesRegex(RuntimeError,'current passing'):self.registry['timing'].run(self.runner.context(revision,'timing'))
 
     def test_scoped_edits_accumulate_and_leave_other_clips_unchanged(self):
         from war_workflow.models import Edit

@@ -1,0 +1,9 @@
+{
+  "kind": "ambient",
+  "path": null,
+  "title": "Quiet atlas ambient bed",
+  "attribution": "Original demonstration bed, generated locally.",
+  "offset_sec": 0,
+  "loop": true,
+  "crossfade_sec": 1
+}

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {heightAt,meshData,terrainPoint} from '../../war_content/web/battlefield.mjs';
+import {heightAt,meshData,terrainPoint,labelledFeatures} from '../../war_content/web/battlefield.mjs';
 import {chromium} from 'playwright';
 import {createServer} from 'node:http';
 import {readFile} from 'node:fs/promises';
@@ -72,7 +72,7 @@ test('actual WebGL battlefield mesh loads with a stream and village and supports
   await page.evaluate(()=>contentEngine.renderAt(17));assert.notDeepEqual(await page.locator('canvas').screenshot(),movingFrame);
   await page.evaluate(()=>contentEngine.renderAt(4));assert.deepEqual(await page.locator('canvas').screenshot(),movingFrame);
   // Production replay uses the same terrain/units with director-controlled camera cues.
-  data.purpose='battlefield_replay';data.terrain_credits='Synthetic terrain fixture';
+  data.unit_presentations={unit:'upright'};data.purpose='battlefield_replay';data.terrain_credits='Synthetic terrain fixture';
   data.scenes[0].focus={x:.35,y:.55};data.scenes[0].view_width=1;
   data.scenes[1].focus={x:.65,y:.45};data.scenes[1].view_width=.6;
   await page.goto(`http://127.0.0.1:${server.address().port}/?aspect=portrait`);await page.waitForFunction(()=>globalThis.contentReady||globalThis.contentError);
@@ -81,7 +81,66 @@ test('actual WebGL battlefield mesh loads with a stream and village and supports
   await page.evaluate(()=>contentEngine.renderAt(4));const replayFrame=await page.locator('canvas').screenshot();
   const replayActors=await page.evaluate(()=>{let n=0;function visit(node){if(node.label?.startsWith('unit:')&&node.alpha===1)n++;for(const c of node.children??[])visit(c);}visit(contentEngine.app.stage);return n;});
   assert.equal(replayActors,4);
+  const presentationState=()=>page.evaluate(()=>{
+   let caption,trail;function visit(n){if(n.label==='captions')caption=n;if(n.label==='movement-trails')trail=n;for(const c of n.children??[])visit(c);}visit(contentEngine.app.stage);
+   return {scale:trail.parent.scale.x,trailWidth:trail.getBounds().width,y:caption.y,
+    active:caption.activeWord,words:caption.children.filter(n=>n.visible).map(n=>({fill:n.currentFill,stroke:n.style.stroke.width}))};
+  });
+  const movingPresentation=await presentationState();
+  assert.ok(movingPresentation.trailWidth>0);
+  assert.ok(movingPresentation.words.some(w=>w.fill===0xf5c542));
+  assert.ok(movingPresentation.words.every(w=>w.stroke===10));
+  await page.evaluate(()=>contentEngine.renderAt(13));const staticStart=await presentationState();
+  await page.evaluate(()=>contentEngine.renderAt(17));const staticEnd=await presentationState();
+  assert.ok(staticEnd.scale>staticStart.scale);assert.equal(staticEnd.y,staticStart.y);
+  assert.equal(staticEnd.trailWidth,0);
+  await page.evaluate(()=>contentEngine.renderAt(4));
+  const rotations=await page.evaluate(()=>{
+   const result=[];function visit(node){if(node.label?.startsWith('unit:'))result.push([node.rotation,node.children[1].rotation]);for(const c of node.children??[])visit(c);}
+   visit(contentEngine.app.stage);return result;
+  });
+  assert.ok(rotations.every(([heading,body])=>heading===0&&body===0));
+
+  const captionCollisions=await page.evaluate(()=>{
+   const units=[];let caption;
+   function visit(node){
+    if(node.label?.startsWith('unit:')&&node.alpha===1)units.push(node.getBounds());
+    if(node.text==='First tactical phase.')caption=node.getBounds();
+    for(const child of node.children??[])visit(child);
+   }
+   visit(contentEngine.app.stage);
+   if(!caption)throw Error('Missing rendered timed caption');
+   return {y:caption.y,bottom:caption.y+caption.height};
+  });
+  assert.equal(captionCollisions.y,Math.round(1920*.72));
+  assert.ok(captionCollisions.bottom<1920*.85);
+
   await page.evaluate(()=>contentEngine.renderAt(17));assert.notDeepEqual(await page.locator('canvas').screenshot(),replayFrame);
   await page.evaluate(()=>contentEngine.renderAt(4));assert.deepEqual(await page.locator('canvas').screenshot(),replayFrame);
+
+  data.blueprint.forces.push({id:'enemy',kind:'infantry',side:'Red',position:{x:.67,y:.4},subgroups:3});
+  data.bindings.unit.enemy='shape';data.unit_presentations.enemy='upright';
+  data.blueprint.scenes[0].actions.push({id:'contact',kind:'engage',unit_id:'unit',target_id:'enemy'});
+  data.timeline.push({kind:'introduce',unit_id:'enemy',start_sec:0,end_sec:0},{action_id:'contact',kind:'engage',unit_id:'unit',start_sec:12.1,end_sec:16.8});
+  await page.goto(`http://127.0.0.1:${server.address().port}/?aspect=portrait`);await page.waitForFunction(()=>globalThis.contentReady||globalThis.contentError);
+  assert.equal(await page.evaluate(()=>globalThis.contentError),undefined);
+  const activeClashes=()=>page.evaluate(()=>{
+   const nodes=[];function visit(n){if(n.label?.startsWith('clash:')&&n.visible)nodes.push(n.label);for(const c of n.children??[])visit(c);}visit(contentEngine.app.stage);return nodes;
+  });
+  await page.evaluate(()=>contentEngine.renderAt(11.9));assert.deepEqual(await activeClashes(),[]);
+  await page.evaluate(()=>contentEngine.renderAt(13));assert.deepEqual(await activeClashes(),['clash:contact']);
+  const clashHud=await page.evaluate(()=>{let value='';function visit(n){if(n.label==='hud:clash')value=n.text;for(const c of n.children??[])visit(c);}visit(contentEngine.app.stage);return value;});
+  assert.match(clashHud,/CLASH/);
+  const clashFrame=await page.locator('canvas').screenshot();
+  await page.evaluate(()=>contentEngine.renderAt(18));assert.deepEqual(await activeClashes(),[]);
+  await page.evaluate(()=>contentEngine.renderAt(13));assert.deepEqual(await page.locator('canvas').screenshot(),clashFrame);
  }finally{await browser.close();if(server)await new Promise(r=>server.close(r));}
+});
+
+
+test('segmented waterways have one label per river while retaining village labels',()=>{
+ const stream={kind:'stream',name:'Goldbach',points:[[0,0],[1,1]]};
+ const village={kind:'village',name:'Telnitz',points:[[0,0]]};
+ const features=[{...stream},{...stream},{...stream},village];
+ assert.deepEqual(labelledFeatures(features),[features[1],village]);
 });

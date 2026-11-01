@@ -86,7 +86,30 @@ class AuthoringTests(unittest.TestCase):
         result=self.runner.run();new=Script.model_validate(self.artifact('writing').output.data)
         self.assertEqual(new.changed_scene_ids,['s1']);self.assertEqual(new.draft.scenes[1:],old.draft.scenes[1:])
         self.assertEqual(result.artifacts['research'],parent.artifacts['research'])
-        self.assertIn('scene',self.model.calls[-5][1].lower())
+        self.assertTrue(any(schema is SceneEdit and 'scene' in prompt.lower() for schema,prompt in self.model.calls))
+
+    def test_wording_edit_reuses_valid_plan_then_reviews_its_current_context(self):
+        parent=self.runner.run();old=self.artifact('direction').output.data
+        changed=Script.model_validate(self.artifact('writing').output.data).draft.scenes[0].model_copy(deep=True)
+        changed.tone='Quietly intrigued';self.model.responses[SceneEdit]=[SceneEdit(scene=changed)]
+        blueprints=sum(schema is Blueprint for schema,prompt in self.model.calls)
+        self.store.edit(Edit(parent_revision=parent.id,kind='script',scene_ids=['s1'],notes='Adjust the delivery tone only.'))
+        result=self.runner.run();current=self.artifact('direction').output.data
+        self.assertEqual(sum(schema is Blueprint for schema,prompt in self.model.calls),blueprints)
+        self.assertEqual(current['blueprint'],old['blueprint'])
+        self.assertEqual(current['script_sha256'],contract_hash(Script.model_validate(self.artifact('writing').output.data)))
+        self.assertIn('plan_review',result.executed)
+
+    def test_queued_delivery_edit_does_not_discard_valid_pending_choreography(self):
+        parent=self.runner.run();old=self.artifact('direction').output.data
+        changed=Script.model_validate(self.artifact('writing').output.data).draft.scenes[0].model_copy(deep=True)
+        changed.tone='Brisk';self.model.responses[SceneEdit]=[SceneEdit(scene=changed)]
+        count=sum(schema is Blueprint for schema,prompt in self.model.calls)
+        first=self.store.edit(Edit(parent_revision=parent.id,kind='script',scene_ids=['s1'],notes='Brisk delivery.'))
+        self.store.edit(Edit(parent_revision=first.id,kind='narration',patch={'notes':'Engaged delivery.'}))
+        self.runner.run()
+        self.assertEqual(sum(schema is Blueprint for schema,prompt in self.model.calls),count)
+        self.assertEqual(self.artifact('direction').output.data['blueprint'],old['blueprint'])
 
     def test_director_scene_edit_keeps_research_and_script(self):
         parent=self.runner.run();old=Plan.model_validate(self.artifact('direction').output.data)
@@ -238,6 +261,16 @@ class AuthoringTests(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()),patch('war_workflow.authoring.adapters',return_value=self.adapters),patch('war_workflow.speech.adapters',return_value={}),patch('war_workflow.production.adapters',return_value={}):
             self.assertEqual(main(['run',str(self.store.root),'--env-file',str(self.root/'absent.env')]),2)
 
+    def test_sound_dependency_tracks_contact_targets_and_force_positions(self):
+        from war_workflow.authoring import plan_output
+        self.runner.run();old=self.artifact('direction')
+        ctx=self.runner.context(self.store.load(),'direction');plan=Plan.model_validate(old.output.data)
+        plan.blueprint.forces[0].position.x+=.01
+        changed=plan_output(ctx,plan)
+        self.assertNotEqual(changed.views['sound_profiles'],old.output.views['sound_profiles'])
+        plan=Plan.model_validate(old.output.data);plan.blueprint.scenes[0].actions[0].target_id=plan.blueprint.forces[-1].id
+        self.assertNotEqual(plan_output(ctx,plan).views['sound_profiles'],old.output.views['sound_profiles'])
+
     def test_cached_script_rebinds_current_provenance_without_regeneration(self):
         from war_workflow.graph import Context
         self.runner.run();revision=self.store.load()
@@ -274,6 +307,7 @@ class AuthoringTests(unittest.TestCase):
         output=plan_output(ctx,plan)
         self.assertEqual(output.views['spatial'],old.output.views['spatial'])
         self.assertEqual(output.views['units'],old.output.views['units'])
+        self.assertEqual(output.views['sound_profiles'],old.output.views['sound_profiles'])
         self.assertNotEqual(output.views['actions'],old.output.views['actions'])
 
 

@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 from uuid import uuid4
 import wave
+from array import array
+import math
 from war_director.models import AudioTiming
 from war_writer.agent import fingerprint
 from war_writer.storage import tts_plan
@@ -30,9 +32,23 @@ def inspect(data):
     return frames,pcm
 
 
+def trim_edges(data):
+    frames,pcm=inspect(data);samples=array('h');samples.frombytes(pcm)
+    block=RATE//100;active=[]
+    for start in range(0,frames,block):
+        values=samples[start:start+block]
+        if math.sqrt(sum(v*v for v in values)/len(values))>100:active.append(start)
+    if not active:return data
+    first=max(0,active[0]-round(.04*RATE));last=min(frames,active[-1]+block+round(.07*RATE))
+    buffer=io.BytesIO()
+    with wave.open(buffer,'wb') as audio:
+        audio.setnchannels(1);audio.setsampwidth(2);audio.setframerate(RATE);audio.writeframes(pcm[first*2:last*2])
+    return buffer.getvalue()
+
+
 def atomic(path,data):
     path=Path(path);path.parent.mkdir(parents=True,exist_ok=True)
-    temp=path.with_name(path.name+'.'+uuid4().hex+'.tmp')
+    temp=path.with_name(uuid4().hex+'.tmp')
     temp.write_bytes(data);temp.replace(path)
 
 
@@ -48,6 +64,7 @@ def prepare(script,request):
             'Pronunciation guidance: '+ '; '.join(pronunciation) if pronunciation else '',
             'Read the transcript exactly. Do not add an introduction or trailing commentary.'] if p)
         identity={'version':1,'text':chunk['text'],'direction':direction,'voice':request.voice,'model':request.model}
+        if request.trim_silence:identity['edge_trim']='rms-10ms-v1'
         key=digest(json.dumps(identity,sort_keys=True,ensure_ascii=False).encode())
         prepared.append((chunk,direction,key,chunk['pause_after_ms']))
     return prepared
@@ -69,6 +86,7 @@ def generate(script,output,cache,provider_factory,request=None,consume=lambda:No
             if provider is None:provider=provider_factory()
             consume();calls+=1
             data=provider.synthesize(chunk['text'],direction,request.model,request.voice)
+            if request.trim_silence:data=trim_edges(data)
             frames,pcm=inspect(data)
             atomic(path,data);atomic(receipt,json.dumps({'key':key,'sha256':digest(data)}).encode())
         pause_frames=pause*RATE//1000

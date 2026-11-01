@@ -8,7 +8,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 from types import SimpleNamespace
 from pydantic import ValidationError
-from war_content.agent import ContentAgent, ContentError, Library, OfflineModel, asset_key, check_manifest
+from war_content.agent import ContentAgent, ContentError, DesignRejected, Library, OfflineModel, asset_key, check_manifest
 from war_content.models import Asset, Brief, DesignReview, ManifestReview, Primitive, Vertex
 from war_content.storage import save
 from war_director.agent import barrier_for
@@ -47,6 +47,27 @@ class ContentTests(unittest.TestCase):
 
     def build(self,model=None,**kwargs):
         return ContentAgent(model or ContentModel(self.m),self.library).build(self.d,self.s,self.p,**kwargs)
+
+    def test_exact_vector_edit_is_reviewed_without_regeneration_and_rejection_preserves_the_library(self):
+        model=ContentModel();agent=ContentAgent(model,self.library,preview=lambda design:b'synthetic rendered pixels')
+        brief=self.m.bindings[0].brief;value=design();accepted=agent.review_design(brief,value)
+        self.assertEqual(accepted.design,value);self.assertEqual(accepted.review_basis,'rendered_image')
+        self.assertEqual(len(model.prompts),1);self.assertIn('operator:vector-edit',accepted.models_used)
+        failed=passing();failed.recognizable=False;model.replies=[failed]
+        with self.assertRaises(DesignRejected):agent.review_design(brief,value)
+        self.assertEqual(self.library.get(brief),accepted)
+
+    def test_upright_equipment_presentation_is_explicit_and_preserved_in_saved_bundle(self):
+        self.m.bindings[0].brief.description='Upright sword-shaped symbolic era icon, not literal equipment.'
+        self.assertTrue(any('presentation=upright' in issue for issue in check_manifest(self.m,self.d,self.p)))
+        self.m.bindings[0].presentation='upright'
+        self.assertEqual(check_manifest(self.m,self.d,self.p),[])
+        result=self.build(manifest=self.m);pixi=self.root/'pixi.js';pixi.write_text('// synthetic runtime')
+        folder=save(result,self.p,self.s,self.root/'output',pixi=pixi)
+        payload=json.loads((folder/'scene.json').read_text())
+        self.assertEqual(payload['unit_presentations'][self.m.bindings[0].object_id],'upright')
+        for binding in self.m.bindings[1:]:
+            if binding.brief.category=='unit':self.assertEqual(payload['unit_presentations'][binding.object_id],'heading')
 
     def test_generate_cache_reuse_and_manifest_preservation(self):
         model=ContentModel(self.m);result=self.build(model)

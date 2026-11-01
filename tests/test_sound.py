@@ -29,6 +29,19 @@ def scene():
 
 
 class SoundPlanTests(unittest.TestCase):
+    def test_evidence_linked_fighting_texture_is_bounded_deterministic_and_not_weapon_fire(self):
+        value=scene();value['blueprint']['forces'][0]['claim_ids']=['C1']
+        config=SoundConfig.model_validate({'textures':[{'unit_id':'a','claim_id':'C1',
+            'rationale':'Synthetic sourced close combat, illustrative sound only.','start':0,'end':4,'gain_db':-17}]})
+        first=compile_plan(value,config)
+        self.assertEqual(first,compile_plan(value,config))
+        cues=[c for c in first.cues if c.action_id.startswith('texture:')]
+        self.assertTrue(cues);self.assertEqual({c.effect for c in cues},{'clash'})
+        self.assertTrue(all(0<=c.start<c.end<=4 and not c.loop for c in cues))
+        for patch in ({'claim_id':'missing'},{'unit_id':'missing'},{'end':5},{'start':4}):
+            broken=config.model_copy(deep=True);broken.textures[0]=broken.textures[0].model_copy(update=patch)
+            with self.assertRaises(ValueError):compile_plan(value,broken)
+
     def test_static_area_callouts_do_not_get_fictional_movement_or_firing(self):
         for mode in ('geography','battlefield'):
             s=scene();s[mode]={'mode':'context'}
@@ -66,6 +79,24 @@ class SoundPlanTests(unittest.TestCase):
         for action,time in [('m',1.5),('fire',2),('unknown',3.5)]:
             bad=SoundConfig.model_validate({'spots':[{'action_id':action,'time':time,'effect':'cannon'}]})
             with self.assertRaises(ValueError):compile_plan(scene(),bad)
+
+    def test_explicit_opposing_engagement_gets_one_synchronized_generic_clash(self):
+        value=scene();value['blueprint']['forces'][0].update(side='Blue',position={'x':.2,'y':.5})
+        value['blueprint']['forces'].append({'id':'b','side':'Red','kind':'infantry','subgroups':3,'position':{'x':.72,'y':.5}})
+        value['blueprint']['scenes'][0]['actions'][1]['target_id']='b'
+        value['timeline'].append({'kind':'introduce','unit_id':'b','start_sec':0,'end_sec':0})
+        plan=compile_plan(value,SoundConfig());hits=[c for c in plan.cues if not c.loop]
+        self.assertEqual(len(hits),1);self.assertEqual(hits[0].effect,'clash')
+        self.assertEqual(hits[0].start,3);self.assertEqual(hits[0].action_id,'fire')
+        self.assertEqual(hits[0].gain_db,-12)
+        muted=compile_plan(value,SoundConfig(clash_enabled=False));self.assertFalse(any(not c.loop for c in muted.cues))
+        explicit=SoundConfig.model_validate({'spots':[{'action_id':'fire','time':3.2,'effect':'musket'}]})
+        self.assertEqual([c.effect for c in compile_plan(value,explicit).cues if not c.loop],['musket'])
+        value['blueprint']['forces'][-1]['position']={'x':.9,'y':.9}
+        with self.assertRaisesRegex(ValueError,'reach contact'):compile_plan(value,SoundConfig())
+        value['blueprint']['forces'][-1]['position']={'x':.72,'y':.5}
+        value['timeline'][-1]['start_sec']=3.5
+        with self.assertRaises(ValueError):compile_plan(value,SoundConfig())
 
     def test_invalid_profiles_timing_subgroups_geometry_and_models(self):
         with self.assertRaises(ValueError):compile_plan(scene(),SoundConfig.model_validate({'profiles':{'missing':{'movement':'tracks'}}}))

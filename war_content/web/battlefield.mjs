@@ -1,6 +1,7 @@
-import {clamp,cameraAt} from './motion.mjs';
+import {clamp,cameraAt,sceneIndex} from './motion.mjs';
 import {projectGeo} from './geography.mjs';
 import {coverCamera,filmOverlay} from './video.mjs';
+import {placeLabel} from './labels.mjs';
 import {createUnits} from './units.mjs';
 const terrainMetrics=new WeakMap();
 
@@ -40,6 +41,14 @@ export function terrainBounds(field) {
  return {x,y,width:right-x,height:bottom-y};
 }
 
+export function labelledFeatures(features) {
+ return features.filter(feature=>{
+  if(feature.kind!=='stream')return true;
+  const segments=features.filter(f=>f.kind==='stream'&&f.name===feature.name);
+  return feature===segments[Math.floor(segments.length/2)];
+ });
+}
+
 export async function createBattlefield(data,app) {
  const {Container,Graphics,Text,MeshSimple,Assets}=globalThis.PIXI,field=data.battlefield;
  const paper=0xeee8d8,ink=0x2b3d3e,b=field.layer.bounds,W=app.screen.width,H=app.screen.height;
@@ -76,8 +85,8 @@ export async function createBattlefield(data,app) {
  }
  streamUnderlay.stroke({color:0xf2edda,width:8,alpha:.8,cap:'round',join:'round'});streams.stroke({color:0x438dba,width:4,cap:'round',join:'round'});world.addChild(streamUnderlay,streams);
  const villages=[],ridge=[],mapText=[];
- for(const feature of field.features.filter(f=>f.kind!=='stream')){
-  const [lon,lat]=feature.points[0],p=projected(lon,lat),holder=new Container();holder.position.set(p.x,p.y);
+ for(const feature of labelledFeatures(field.features)){
+  const [lon,lat]=feature.points[feature.kind==='stream'?Math.floor(feature.points.length/2):0],p=projected(lon,lat),holder=new Container();holder.position.set(p.x,p.y);
   if(feature.kind==='village'){
    for(let i=0;i<6;i++){
     const x=(i%3-1)*12,y=(Math.floor(i/3)-.5)*12;
@@ -85,7 +94,7 @@ export async function createBattlefield(data,app) {
       .poly([x-5,y-3,x,y-8,x+5,y-3],true).fill(0x80674e));
    }
    villages.push(holder);
-  }else{
+  }else if(feature.kind!=='stream'){
    const ring=new Graphics().ellipse(0,0,115,60).stroke({color:0xa67635,width:3,alpha:.55});holder.addChild(ring);ridge.push(ring);
   }
   const label=new Text({text:feature.name,style:{fontFamily:'Georgia, serif',fontSize:feature.kind==='ridge'?29:25,fontWeight:feature.kind==='ridge'?'bold':'normal',fill:ink}});
@@ -101,7 +110,7 @@ export async function createBattlefield(data,app) {
  }
  const units=active?createUnits(data,world,p=>terrainPoint(field,p.x,p.y),()=>world.scale.x):null;
  const hud=filmOverlay(data,app,replay?data.terrain_credits:'Mapzen / USGS / Copernicus · GeoNames · © OSM contributors · openstreetmap.org/copyright',
-  replay?(data.spatial_binding?.reviewed?'Symbolic forces · reviewed coordinate binding · silent picture':'Illustrative unit positions · silent render test'):study?'Animation study · illustrative deployments · '+(data.soundtrack?(data.soundtrack.has_music?'effects + quiet music':'sound effects'):'silent'):'Terrain study · modern stream course · '+field.exaggeration+'× height emphasis');
+  replay?'Approximate deployments · symbolic forces':study?'Animation study · illustrative deployments · '+(data.soundtrack?(data.soundtrack.has_music?'effects + quiet music':'sound effects'):'silent'):'Terrain study · modern stream course · '+field.exaggeration+'× height emphasis');
  const bounds=terrainBounds(field);
  const center=kind=>{
   const points=field.features.filter(f=>f.kind===kind).flatMap(f=>f.points).map(([lon,lat])=>projected(lon,lat));
@@ -113,30 +122,35 @@ export async function createBattlefield(data,app) {
  const bar=new Graphics();app.stage.addChild(bar);const scaleText=text('',W-242,28,20);
  text('N',W-64,114,22);app.stage.addChild(new Graphics().poly([W-55,141,W-65,165,W-43,165],true).fill(ink));
  return time=>{
-  let index=data.scenes.findIndex(s=>time>=s.start&&time<s.end);if(index<0)index=time<data.scenes[0].start?0:data.scenes.length-1;
+  const index=sceneIndex(data.scenes,time);
   const target={...focuses[Math.min(index,focuses.length-1)]},previous={...focuses[Math.max(0,Math.min(index-1,focuses.length-1))]};
   if(index===3&&W>H&&villageY.length)previous.y=Math.max(...villageY);
   if(index===2&&W>H&&villageY.length){const p=clamp((time-data.scenes[index].start)/(data.scenes[index].end-data.scenes[index].start));target.y=Math.min(...villageY)+(Math.max(...villageY)-Math.min(...villageY))*p;}
   if(study){const p=terrainPoint(field,data.animation_camera.x,data.animation_camera.y);Object.assign(target,p);Object.assign(previous,p);}
   const t=clamp((time-data.scenes[index].start)/1.2),ease=t*t*(3-2*t);
-  const shot=replay?cameraAt(data.scenes,time):null;
+  const shot=replay?cameraAt(data.scenes,time,data.presentation?.camera_push_in??.08):null;
   const focus=shot?terrainPoint(field,shot.x,shot.y):{x:previous.x+(target.x-previous.x)*ease,y:previous.y+(target.y-previous.y)*ease};
   const camera=coverCamera(bounds,W,H,focus,shot?1.03/shot.width:1.03);
   world.scale.set(camera.scale);world.position.set(camera.x,camera.y);
   const occupied=units?.render(time)??[];
-  hud.update(time,data.scenes[index].labels.join(' · '));
-  const bottom=hud.captionTop()-12;annotationLeaders.clear();
+  hud.update(time,data.scenes[index].labels.join(' \u00b7 '),occupied.map(unit=>({x:camera.x+unit.point.x*camera.scale,y:camera.y+unit.point.y*camera.scale})),units?.engagements??[]);
+  annotationLeaders.clear();
+  const blocked=occupied.map(unit=>({x:camera.x+unit.point.x*camera.scale-48,y:camera.y+unit.point.y*camera.scale-48,width:96,height:96}));
+  for(const item of mapText.filter(item=>item.holder)){
+   blocked.push({x:camera.x+item.anchor.x*camera.scale-30,y:camera.y+item.anchor.y*camera.scale-30,width:60,height:60});
+  }
+  const captionBox=hud.captionBounds();if(captionBox)blocked.push(captionBox);
   for(const item of mapText){
-   const {label,anchor,offset}=item;label.scale.set(1/camera.scale);
+   const {label,anchor}=item;label.scale.set(1/camera.scale);
    const px=camera.x+anchor.x*camera.scale,py=camera.y+anchor.y*camera.scale;
-   const sx=camera.x+(anchor.x+offset.x)*camera.scale,sy=camera.y+(anchor.y+offset.y)*camera.scale;
    const width=label.width*camera.scale,height=label.height*camera.scale;
-   label.visible=px>=10&&px<=W-10&&py>=10&&py<=H-10;
-   if(active&&occupied.some(unit=>Math.hypot((unit.point.x-anchor.x)*camera.scale,(unit.point.y-anchor.y)*camera.scale)<95))label.visible=false;
-   if(label.visible){
-    const x=clamp(sx,18+width/2,W-18-width/2),y=clamp(sy,120+height,bottom);
+   const box=px>=10&&px<=W-10&&py>=215&&py<=H-74?placeLabel({x:px,y:py},width,height,blocked,{x:18,y:215,width:W-36,height:H-289}):null;
+   label.visible=!!box;
+   if(box){
+    const x=box.x+width/2,y=box.y+height;
     label.position.set((x-camera.x)/camera.scale-(item.holder?anchor.x:0),(y-camera.y)/camera.scale-(item.holder?anchor.y:0));
-    if(Math.abs(x-sx)+Math.abs(y-sy)>8)annotationLeaders.moveTo(anchor.x,anchor.y).lineTo((x-camera.x)/camera.scale,(y-camera.y)/camera.scale);
+    blocked.push(box);
+    annotationLeaders.moveTo(anchor.x,anchor.y).lineTo((x-camera.x)/camera.scale,(y-camera.y)/camera.scale);
    }
   }
   annotationLeaders.stroke({color:0x53654e,width:1/camera.scale,alpha:.6});

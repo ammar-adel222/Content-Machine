@@ -2,6 +2,7 @@
 from dataclasses import dataclass
 from contextlib import closing
 import sqlite3
+import subprocess
 from typing import Callable, TypedDict
 from .models import Artifact, Output, Revision
 from .planner import ORDER, SPECS, computation_key, affected
@@ -129,7 +130,7 @@ class Runner:
             if stage not in history:history.append(stage)
             self.store.save(revision)
             return {'status':'running'}
-        except (RuntimeError,ValueError,OSError,KeyError) as error:
+        except (RuntimeError,ValueError,OSError,KeyError,subprocess.SubprocessError) as error:
             revision=self.store.load(revision.id);revision.status='quota_wait' if isinstance(error,BudgetExhausted) else 'needs_input'
             revision.blocked_stage=stage
             # Provider adapters should return actionable redacted issues in Output.

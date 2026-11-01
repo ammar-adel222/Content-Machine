@@ -9,7 +9,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from uuid import uuid4
 from .music_models import MusicConfig
-from .music_render import ambient_bed, fit_track, mix_music
+from .music_render import ambient_bed, pulse_bed, fit_track, mix_music
 from .play import ready, WEB, RUNTIME
 from .sound_effects import mux_video
 from .sound_render import RATE, read_wave, write_wave
@@ -36,7 +36,7 @@ def prepare_music(config, duration, source_root, cache, previous=None):
         if original.suffix.lower() not in ('.wav','.mp3','.ogg','.flac','.m4a','.aac'):
             raise ValueError('Choose WAV, MP3, OGG, FLAC, M4A or AAC music.')
         source_hash=digest(original)
-    else:source_hash=hashlib.sha256(b'quiet-atlas-ambient-v1').hexdigest()
+    else:source_hash=hashlib.sha256(('quiet-atlas-'+source.arrangement+'-v1').encode()).hexdigest()
     identity=dict(engine='music-v1',source_hash=source_hash,kind=source.kind,duration=float(duration),
                   offset_sec=float(source.offset_sec),loop=source.loop,crossfade_sec=float(source.crossfade_sec),rate=RATE)
     key=hashlib.sha256(json.dumps(identity,sort_keys=True).encode()).hexdigest()
@@ -52,7 +52,7 @@ def prepare_music(config, duration, source_root, cache, previous=None):
         if details.get('cache_key')!=key or not audio.is_file() or digest(audio)!=details.get('prepared_sha256'):
             raise ValueError('Music cache is inconsistent; repair or remove that cache entry.')
         return read_wave(audio),details,original,True
-    raw=decode_track(original,source.offset_sec,duration) if original else ambient_bed()
+    raw=decode_track(original,source.offset_sec,duration) if original else (pulse_bed() if source.arrangement=='pulse' else ambient_bed())
     if original is None and source.offset_sec:
         offset=round((source.offset_sec%32)*RATE)*2;raw=raw[offset:]+raw[:offset]
     prepared,details=fit_track(raw,duration,source.loop,source.crossfade_sec)

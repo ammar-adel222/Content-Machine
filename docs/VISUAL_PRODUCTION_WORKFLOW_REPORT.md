@@ -1,5 +1,9 @@
 # Terrain, unit assets, rendered review and picture export
 
+Follow-up: [audio workflow completion](AUDIO_WORKFLOW_REPORT.md) now connects effects,
+music preparation and final mixing. Scope and test counts below record the visual
+production milestone.
+
 ## Implemented scope
 
 `war_workflow/production.py` connects four independent stages to the LangGraph runner:
@@ -98,8 +102,11 @@ follow the same independent subgroup animation on the heightfield; director came
 focus and zoom cues drive its framing. Existing terrain and animation studies retain
 their preview behavior. Portrait 1080×1920 remains the default; landscape is supported.
 
-Every scene supplies a midpoint screenshot. Reviews are batched at four images per
-request and inspect phone readability, terrain clarity, distinct units and captions.
+Every scene supplies a midpoint screenshot. Reviews use one image per request for
+provider compatibility and inspect phone readability, terrain clarity, distinct units
+and captions. Passing per-frame reviews are cached, so a later provider failure does
+not repeat completed inspections. Requirement manifests are also cached independently
+of asset creation. Short free-tier rate-limit resets can be retried within 60 seconds.
 Failed reviews save the bundle and screenshots and block picture export. This is a
 review of actual pixels, but sampled stills cannot establish full-motion correctness,
 historical positioning or audio quality. Final human review remains required.
@@ -172,3 +179,28 @@ movement study, not a historical reconstruction or a complete graph-produced vid
 These media files are local ignored outputs. Final verification: **342 Python tests
 and 20 JavaScript/browser tests pass**, including 19 production integration tests.
 `pip check` reports no broken requirements, and patch whitespace validation passes.
+
+
+## Full-pipeline test follow-up
+
+The Austerlitz live test added structured camera overrides, without rewriting the
+military choreography or regenerating speech. A `camera` edit accepts:
+
+```json
+{
+  "camera_overrides": {
+    "s3": {"focus": {"x": 0.38, "y": 0.6}, "view_width": 1.0}
+  }
+}
+```
+
+Omitted scenes retain earlier overrides; `null` removes an override. Unknown scene
+IDs fail validation. The picture stage checks its effective framing against the
+reviewed bundle. These edits rerun visual review/picture and downstream muxing while
+retaining research, script, narration, terrain, unit assets and audio preparation.
+
+Captions now show short word groups within measured phrase intervals. Word timing is
+approximate, not forced alignment. Placement finds gaps between visible unit rows.
+Tactical labels use collision-aware placement and leaders, and repeated geographic
+stream segments receive one label per named stream. Source credits are compacted for
+phone viewing; complete provenance remains in the saved battlefield contract.
